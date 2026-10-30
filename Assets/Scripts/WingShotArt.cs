@@ -5,6 +5,53 @@ public static class WingShotArt
 {
     // Share these two frames between all birds instead of creating textures per bird.
     static Sprite[] birds;
+    static Sprite square;
+    static Sprite crate;
+    public static Sprite Crate
+    {
+        get
+        {
+            if (crate != null) return crate;
+            const int width = 128, height = 112;
+            var texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+            texture.name = "Reinforced supply crate";
+            texture.filterMode = FilterMode.Bilinear;
+            var pixels = new Color[width * height];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                Color color = Color.clear;
+                if (x >= 6 && x < 122 && y >= 6 && y < 104)
+                {
+                    color = new Color(.19f, .14f, .11f);
+                    if (x > 10 && x < 118 && y > 10 && y < 100)
+                        color = Color.Lerp(new Color(.51f, .30f, .14f), new Color(.76f, .51f, .25f), y / 112f);
+                    if ((y - 10) % 23 < 3) color *= .65f;
+                    if ((x > 17 && x < 27) || (x > 101 && x < 111) || (y > 85 && y < 96))
+                        color = new Color(.30f, .38f, .43f);
+                    if (Ellipse(x, y, 64, 55, 28, 29)) color = new Color(.45f, .54f, .59f);
+                    if (Ellipse(x, y, 64, 55, 24, 25)) color = new Color(.08f, .16f, .23f);
+                    if ((Ellipse(x, y, 22, 90, 2, 2) || Ellipse(x, y, 106, 90, 2, 2) ||
+                        Ellipse(x, y, 22, 18, 2, 2) || Ellipse(x, y, 106, 18, 2, 2)))
+                        color = new Color(.78f, .84f, .87f);
+                }
+                pixels[y * width + x] = color;
+            }
+            texture.SetPixels(pixels);
+            texture.Apply(false, true);
+            crate = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(.5f, .5f), 100f);
+            return crate;
+        }
+    }
+    public static Sprite Square
+    {
+        get
+        {
+            if (square == null)
+                square = Sprite.Create(Texture2D.whiteTexture, new Rect(0, 0, 1, 1), new Vector2(.5f, .5f), 1f);
+            return square;
+        }
+    }
     // Return a cached wing picture, creating the two pictures only when needed.
     public static Sprite Bird(int frame)
     {

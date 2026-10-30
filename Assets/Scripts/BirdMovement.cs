@@ -32,7 +32,9 @@ public class BirdMovement : MonoBehaviour
     void Update()
     {
         if (GameManager.Instance != null && !GameManager.Instance.IsPlaying) return;
-        age += Time.deltaTime;
+        var game = GameManager.Instance;
+        float flightDelta = Time.deltaTime * (game == null || game.Powerups == null ? 1f : game.Powerups.BirdSpeedMultiplier);
+        age += flightDelta;
         // Sine waves make smooth vertical motion instead of sudden turns.
         float offset = 0f;
         if (flightPattern == BirdFlightPattern.Wave)
@@ -40,7 +42,7 @@ public class BirdMovement : MonoBehaviour
         else if (flightPattern == BirdFlightPattern.Swoop)
             offset = Mathf.Sin(age * frequency * .65f) * amplitude * 1.6f;
         var position = transform.position;
-        position.x += direction * speed * Time.deltaTime;
+        position.x += direction * speed * flightDelta;
         // Keep the bird above the grass and below the scoreboard.
         position.y = Mathf.Clamp(startY + offset, minY, maxY);
         transform.position = position;

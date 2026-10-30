@@ -30,6 +30,13 @@ public static class WingShotProjectTools
     static float originalInterval;
     static Vector3 pausedBirdPosition;
     static BirdTarget pausedBird;
+    static int shotsBeforePause;
+    static Transform pausedCloud;
+    static Vector3 pausedCloudPosition;
+    static WingShotCrate pausedCrate;
+    static float pausedCrateLife, pausedSniper, pausedDouble, pausedSlow;
+    static Vector3 pausedCratePosition, slowProbePosition;
+    static BirdTarget slowProbe;
     static Report report;
 
     [Serializable] public sealed class Report
@@ -182,6 +189,8 @@ public static class WingShotProjectTools
             ValidateScene();
             CheckEconomy();
             CapturePrefs();
+            foreach (var key in PreferenceKeys(CosmeticProgress.DefaultPrefix)) PlayerPrefs.DeleteKey(key.key);
+            PlayerPrefs.Save();
             SessionState.SetBool(Batch, batch);
             SessionState.SetBool("WingShot.Checks.Capture", Array.IndexOf(Environment.GetCommandLineArgs(), "-wingShotCapture") >= 0);
             SessionState.SetBool(Ending, false);
@@ -244,6 +253,15 @@ public static class WingShotProjectTools
                     runningTime = game.roundDuration;
                     FindButton("START GAME").onClick.Invoke();
                     Require(game.IsPlaying && game.Shots == 0 && game.score == 0, "Start Game resets round statistics");
+                    Require(ActiveBirds().Length == 3 && Array.Exists(ActiveBirds(), bird => bird.MaxHealth == 2),
+                        "Opening flock contains three birds including a two-hit target");
+                    foreach (var openingBird in ActiveBirds())
+                    {
+                        var viewportPosition = Camera.main.WorldToViewportPoint(openingBird.transform.position);
+                        Require(viewportPosition.x > 0f && viewportPosition.x < 1f &&
+                            viewportPosition.y > .2f && viewportPosition.y < .8f,
+                            "Opening target is immediately visible inside the flight area", false);
+                    }
                     Next(.25);
                     break;
                 case 1:
@@ -251,6 +269,7 @@ public static class WingShotProjectTools
                     Require(ActiveBirds().Length > 0, "Start Game immediately spawns a bird");
                     var spawner = Object.FindAnyObjectByType<BirdSpawner>();
                     originalInterval = spawner.CurrentInterval;
+                    Require(originalInterval <= .91f, "Opening spawn interval is under one second with the existing scene settings");
                     spawner.enabled = false;
                     foreach (var bird in ActiveBirds()) { bird.gameObject.SetActive(false); Object.Destroy(bird.gameObject); }
                     var target = MakeTarget(spawner);
@@ -258,27 +277,37 @@ public static class WingShotProjectTools
                     var shooting = game.GetComponent<ShootingSystem>();
                     Require(shooting.TryShootAt(screen) && game.Hits == 1 && game.Misses == 0 && game.score == 10,
                         "A collider hit records one hit and awards exactly ten points");
-                    Require(shooting.TryShootAt(screen) && game.Hits == 1 && game.Misses == 1 && game.score == 10,
-                        "A second shot cannot score the destroyed target again");
+                    float beforeMissTime = game.timeRemaining;
+                    int beforeMissWallet = game.Progress.Points;
+                    Require(shooting.TryShootAt(screen) && game.Hits == 1 && game.Misses == 1 && game.score == 0 &&
+                        Mathf.Approximately(game.timeRemaining, beforeMissTime - 1f),
+                        "A second shot cannot score a defeated bird and deducts exactly ten points and one second");
+                    Require(game.Progress.Points == beforeMissWallet && game.EarnedPoints == 10,
+                        "Miss penalties leave earned currency intact");
                     Require(game.Shots == 2 && Mathf.Approximately(game.Accuracy, 50f), "Accuracy is hits divided by shots");
+                    CheckCombatAndPenalties(game, spawner, shooting, screen);
+                    shotsBeforePause = game.Shots;
                     var pauseButton = FindButton("PAUSE");
                     Vector2 pausePoint = RectTransformUtility.WorldToScreenPoint(null, pauseButton.transform.position);
-                    Require(!shooting.TryShootAt(pausePoint) && game.Shots == 2, "UI button clicks do not shoot or count as misses");
+                    Require(!shooting.TryShootAt(pausePoint) && game.Shots == shotsBeforePause, "UI button clicks do not shoot or count as misses");
                     Require(!shooting.IsPointerOverUI(new Vector2(Screen.width * .5f, Screen.height * .45f)),
                         "Gameplay HUD and crosshair do not block the shooting area");
                     pausedBird = MakeTarget(spawner);
                     pausedBird.GetComponent<BirdMovement>().enabled = true;
                     pausedBirdPosition = pausedBird.transform.position;
+                    pausedCloud = game.Landscape.transform.Find("Drifting cloud 1");
+                    pausedCloudPosition = pausedCloud.position;
                     pauseButton.onClick.Invoke();
                     pausedTime = game.timeRemaining;
                     Require(game.State == WingShotState.Paused && Time.timeScale == 0f, "Pause stops gameplay time");
-                    Require(!shooting.TryShootAt(screen) && game.Shots == 2 && !pausedBird.TryHit(),
+                    Require(!shooting.TryShootAt(screen) && game.Shots == shotsBeforePause && !pausedBird.TryHit(),
                         "Shooting and direct target hits are rejected while paused");
                     Next(.25);
                     break;
                 case 2:
                     Require(Mathf.Approximately(pausedTime, game.timeRemaining), "Timer stays frozen during pause");
                     Require(pausedBird != null && pausedBird.transform.position == pausedBirdPosition, "Bird movement stays frozen during pause");
+                    Require(pausedCloud.position == pausedCloudPosition, "Cloud movement stays frozen during pause");
                     Require(game.Sounds.MusicSource.volume < game.Sounds.musicVolume, "Music fades quieter while gameplay is paused");
 #if ENABLE_INPUT_SYSTEM
                     PrepareKeyboardTest();
@@ -297,7 +326,8 @@ public static class WingShotProjectTools
                     InputSystem.QueueStateEvent(Keyboard.current, new KeyboardState());
 #endif
                     Require(game.timeRemaining < pausedTime, "Timer continues after resume");
-                    game.AddScore(490);
+                    Require(pausedCloud.position != pausedCloudPosition, "Cloud movement resumes with gameplay");
+                    game.AddScore(500 - game.score);
                     Require(game.DifficultyLevel == 10 &&
                         Object.FindAnyObjectByType<BirdSpawner>().CurrentInterval < originalInterval,
                         "Score increases difficulty and shortens spawn interval with a level cap");
@@ -309,6 +339,7 @@ public static class WingShotProjectTools
                         "Timer expiry opens game over and freezes gameplay");
                     Require(game.gameOverPanel.activeInHierarchy && game.finalScoreText.text.Contains("500"),
                         "Results show the final score");
+                    Require(game.Progress.BestScore == 500, "Best score records the settled round score");
                     Require(!game.GetComponent<ShootingSystem>().TryShootAt(new Vector2(Screen.width / 2f, Screen.height / 2f)),
                         "Game over rejects shooting");
                     FindButton("PLAY AGAIN").onClick.Invoke();
@@ -318,6 +349,14 @@ public static class WingShotProjectTools
                     Require(game.IsPlaying && !game.gameOver && game.score == 0 && game.Shots == 0 &&
                         game.Accuracy == 0 && Time.timeScale == 1f && game.timeRemaining > 0,
                         "Play Again starts a clean playable round with zero-shot accuracy");
+                    game.timeRemaining = .5f;
+                    int walletBeforeExpiry = game.Progress.Points;
+                    game.RegisterShot(false);
+                    Require(game.State == WingShotState.GameOver && game.timeRemaining == 0f && game.score == -10 &&
+                        game.Misses == 1 && game.Progress.Points == walletBeforeExpiry,
+                        "A miss in the last second immediately ends the round with its score penalty");
+                    game.RegisterShot(false);
+                    Require(game.Misses == 1 && game.score == -10, "No further penalties are applied after game over");
                     game.ReturnToMainMenu();
                     game.OpenCustomization();
                     int wallet = game.Progress.Points;
@@ -326,6 +365,18 @@ public static class WingShotProjectTools
                         game.Progress.Points == wallet - 75, "Shop button purchases and selects the crosshair");
                     FindButtonStarting("Bullseye").onClick.Invoke();
                     Require(game.Progress.Points == wallet - 75, "Shop does not charge again for an owned style");
+                    // The shop is on the scene Canvas rather than parented under GameManager.
+                    var catalogScroll = Object.FindAnyObjectByType<ScrollRect>();
+                    Require(catalogScroll != null && catalogScroll.content.rect.height > catalogScroll.viewport.rect.height &&
+                        catalogScroll.viewport.GetComponent<RectMask2D>() != null,
+                        "Expanded catalog has a clipped scrolling viewport");
+                    catalogScroll.verticalNormalizedPosition = 0f;
+                    Canvas.ForceUpdateCanvases();
+                    var premiumButton = FindButtonStarting("Supernova");
+                    Require(RectTransformUtility.RectangleContainsScreenPoint(catalogScroll.viewport,
+                        RectTransformUtility.WorldToScreenPoint(null, premiumButton.transform.position)),
+                        "Scrolling to the bottom makes the most expensive reticle visible");
+                    catalogScroll.verticalNormalizedPosition = 1f;
                     FindButtonStarting("Mint Glider").onClick.Invoke();
                     FindButtonStarting("Golden Hour").onClick.Invoke();
                     Require(game.Progress.Selected(CosmeticCategory.Bird) == 2 &&
@@ -337,6 +388,7 @@ public static class WingShotProjectTools
                         "Selected background is applied to the game camera");
                     Require(ActiveBirds()[0].GetComponent<SpriteRenderer>().color == CosmeticCatalog.Birds[2].Color,
                         "Spawned birds use the selected cosmetic color");
+                    CheckLandscapeThemes(game);
                     bool correctCrosshair = false;
                     foreach (var graphic in WingShotObjects.All<WingShotCrosshair>(true))
                         if (graphic.name == "Gameplay Crosshair" && graphic.style == 1) correctCrosshair = true;
@@ -364,15 +416,8 @@ public static class WingShotProjectTools
                     Require(WingShotObjects.All<GameManager>().Length == 1,
                         "Scene reload leaves exactly one GameManager");
                     Require(ActiveBirds().Length == 0, "Reload does not leave targets from an earlier round");
-                    if (SessionState.GetBool("WingShot.Checks.Capture", false))
-                    {
-                        game.Progress.UnlockAndSelect(CosmeticCategory.Background, 0);
-                        game.ApplyCosmetics();
-                        CaptureFrame("Logs/WingShot-MainMenu.png");
-                        CaptureFrame("Logs/WingShot-MainMenu-4x3.png", 1024, 768);
-                        Next(.5);
-                    }
-                    else { report.passed = report.errors.Count == 0; Finish(); }
+                    stage = 15;
+                    Next(.1);
                     break;
                 case 7:
                     game.OpenCustomization();
@@ -380,6 +425,12 @@ public static class WingShotProjectTools
                     break;
                 case 8:
                     CaptureFrame("Logs/WingShot-Customization.png");
+                    CaptureFrame("Logs/WingShot-Customization-4x3.png", 1024, 768);
+                    var previewScroll = Object.FindAnyObjectByType<ScrollRect>();
+                    previewScroll.verticalNormalizedPosition = 0f;
+                    Canvas.ForceUpdateCanvases();
+                    CaptureFrame("Logs/WingShot-Customization-Premium.png");
+                    previewScroll.verticalNormalizedPosition = 1f;
                     Next(.5);
                     break;
                 case 9:
@@ -389,12 +440,21 @@ public static class WingShotProjectTools
                     for (int i = 0; i < 4; i++)
                     {
                         var photoBird = photoSpawner.SpawnBird();
+                        if (i == 3 && photoBird.GetComponent<BirdTarget>().MaxHealth == 1)
+                            photoBird.GetComponent<BirdTarget>().Configure(3, 60);
                         photoBird.transform.position = new Vector3(-4f + i * 2.5f, -.5f + (i % 2) * 2f, 0);
                     }
                     Next(.3);
                     break;
                 case 10:
                     CaptureFrame("Logs/WingShot-Gameplay.png");
+                    CaptureFrame("Logs/WingShot-Gameplay-4x3.png", 1024, 768);
+                    for (int theme = 1; theme < CosmeticCatalog.Backgrounds.Length; theme++)
+                    {
+                        game.Landscape.Apply(theme);
+                        CaptureFrame("Logs/WingShot-Scenery-" + CosmeticCatalog.Backgrounds[theme].Id + ".png");
+                    }
+                    game.Landscape.Apply(game.Progress.Selected(CosmeticCategory.Background));
                     Next(.5);
                     break;
                 case 11:
@@ -419,6 +479,122 @@ public static class WingShotProjectTools
                 case 15:
                     report.passed = report.errors.Count == 0;
                     Finish();
+                    break;
+                case 16:
+                    Require(game.Powerups.CurrentCrate == null && game.Powerups.ShotDamage == 1,
+                        "Main menu has no crates or active weapon boosts");
+                    game.StartGame();
+                    Object.FindAnyObjectByType<BirdSpawner>().enabled = false;
+                    foreach (var bird in ActiveBirds()) { bird.gameObject.SetActive(false); Object.Destroy(bird.gameObject); }
+                    Next(3.75);
+                    break;
+                case 17:
+                    Require(game.Powerups.CurrentCrate != null && game.Powerups.CurrentCrate.Kind == WingShotPowerup.Sniper,
+                        "The first sniper supply crate spawns automatically after three seconds");
+                    pausedCrate = game.Powerups.CurrentCrate;
+                    Require(pausedCrate.IsDropping && pausedCrate.transform.position.y > pausedCrate.LandingPosition.y &&
+                        pausedCrate.TimeToLive == 18f, "A supply crate falls from above and keeps its full lifetime until landing");
+                    if (SessionState.GetBool("WingShot.Checks.Capture", false)) CaptureFrame("Logs/WingShot-Crate-Dropping.png");
+                    game.PauseGame();
+                    pausedCratePosition = pausedCrate.transform.position;
+                    pausedCrateLife = pausedCrate.TimeToLive;
+                    stage = 20;
+                    Next(.2);
+                    break;
+                case 22:
+                    Require(!game.Powerups.CurrentCrate.IsDropping &&
+                        Mathf.Abs(game.Powerups.CurrentCrate.transform.position.y - game.Powerups.CurrentCrate.LandingPosition.y) < .3f &&
+                        game.Powerups.CurrentCrate.TimeToLive > 16.5f,
+                        "A resumed drop lands smoothly and starts the crate lifetime after landing");
+                    CheckPowerupCombat(game);
+                    pausedCrate = game.Powerups.CurrentCrate;
+                    game.PauseGame();
+                    pausedCratePosition = pausedCrate.transform.position;
+                    pausedCrateLife = pausedCrate.TimeToLive;
+                    pausedSniper = game.Powerups.SniperRemaining;
+                    pausedDouble = game.Powerups.DoublePointsRemaining;
+                    pausedSlow = game.Powerups.SlowRemaining;
+                    stage = 17;
+                    Next(.3);
+                    break;
+                case 21:
+                    Require(pausedCrate.transform.position == pausedCratePosition && pausedCrate.TimeToLive == pausedCrateLife &&
+                        pausedCrate.IsDropping, "Pausing freezes a supply crate in the middle of its drop");
+                    game.ResumeGame();
+                    Next(1.5);
+                    break;
+                case 18:
+                    Require(game.Powerups.SniperRemaining == pausedSniper && game.Powerups.DoublePointsRemaining == pausedDouble &&
+                        game.Powerups.SlowRemaining == pausedSlow && pausedCrate.TimeToLive == pausedCrateLife &&
+                        pausedCrate.transform.position == pausedCratePosition,
+                        "Pause freezes every power-up duration, crate lifetime and crate movement");
+                    float timeBeforePausedReward = game.timeRemaining;
+                    game.Powerups.Activate(WingShotPowerup.ExtraTime);
+                    Require(!pausedCrate.TryHit(3) && game.timeRemaining == timeBeforePausedReward,
+                        "Paused games reject crate damage and power-up activation");
+                    game.ResumeGame();
+                    runningTime = game.timeRemaining;
+                    slowProbePosition = slowProbe.transform.position;
+                    Next(.3);
+                    break;
+                case 19:
+                    Require(game.Powerups.SniperRemaining < pausedSniper && game.Powerups.DoublePointsRemaining < pausedDouble &&
+                        game.Powerups.SlowRemaining < pausedSlow && pausedCrate.TimeToLive < pausedCrateLife &&
+                        game.timeRemaining < runningTime && Time.timeScale == 1f,
+                        "Resume advances power-ups, crate lifetime and the normal round clock");
+                    float elapsed = runningTime - game.timeRemaining;
+                    Require(Mathf.Abs((slowProbe.transform.position.x - slowProbePosition.x) - elapsed * 2f) < .12f,
+                        "Slow-birds reward actually halves world movement without slowing the round timer");
+                    slowProbe.GetComponent<BirdMovement>().enabled = false;
+                    if (SessionState.GetBool("WingShot.Checks.Capture", false))
+                    {
+                        CaptureFrame("Logs/WingShot-Powerups.png");
+                        CaptureFrame("Logs/WingShot-Powerups-4x3.png", 1024, 768);
+                        CaptureCrateTypes(game);
+                    }
+                    Next(18.3);
+                    break;
+                case 20:
+                    Require(game.Powerups.ShotDamage == 1 && game.Powerups.PointMultiplier == 1 &&
+                        game.Powerups.BirdSpeedMultiplier == 1f && game.Powerups.SniperRemaining == 0f &&
+                        game.Powerups.DoublePointsRemaining == 0f && game.Powerups.SlowRemaining == 0f,
+                        "All timed power-ups expire automatically and restore ordinary damage, rewards and movement");
+                    Require(pausedCrate == null, "An unopened crate expires after eighteen seconds of gameplay");
+                    game.Powerups.ResetRound();
+                    foreach (var bird in ActiveBirds()) { bird.gameObject.SetActive(false); Object.Destroy(bird.gameObject); }
+                    var expiryTarget = MakeTarget(Object.FindAnyObjectByType<BirdSpawner>());
+                    expiryTarget.Configure(3, 60);
+                    var expiryShooting = game.GetComponent<ShootingSystem>();
+                    Require(expiryShooting.TryShootAt(Camera.main.WorldToScreenPoint(expiryTarget.transform.position)) &&
+                        expiryTarget.RemainingHealth == 2 && expiryShooting.LastShotSound == WingShotSound.Shoot,
+                        "After sniper expiry the real firing path uses the ordinary sound and one damage again");
+                    bool restoredReticle = false;
+                    foreach (var graphic in WingShotObjects.All<WingShotCrosshair>(true))
+                        if (graphic.name == "Gameplay Crosshair" && graphic.style == game.Progress.Selected(CosmeticCategory.Crosshair))
+                            restoredReticle = true;
+                    Require(restoredReticle, "Sniper expiry restores the selected cosmetic reticle");
+                    game.Powerups.Activate(WingShotPowerup.Sniper);
+                    game.Powerups.Activate(WingShotPowerup.DoublePoints);
+                    game.Powerups.SpawnCrate(WingShotPowerup.ExtraTime);
+                    game.EndGame();
+                    Require(game.Powerups.ShotDamage == 1 && game.Powerups.PointMultiplier == 1 &&
+                        WingShotObjects.All<WingShotCrate>().Length == 0, "Game over clears power-ups and all crates");
+                    game.StartGame();
+                    game.Powerups.Activate(WingShotPowerup.SlowBirds);
+                    game.Powerups.SpawnCrate(WingShotPowerup.Sniper);
+                    game.ReturnToMainMenu();
+                    Require(game.Powerups.BirdSpeedMultiplier == 1f && game.Powerups.CurrentCrate == null &&
+                        WingShotObjects.All<WingShotCrate>().Length == 0, "Returning to menu clears crates and timed effects");
+                    if (SessionState.GetBool("WingShot.Checks.Capture", false))
+                    {
+                        game.Progress.UnlockAndSelect(CosmeticCategory.Background, 0);
+                        game.ApplyCosmetics();
+                        CaptureFrame("Logs/WingShot-MainMenu.png");
+                        CaptureFrame("Logs/WingShot-MainMenu-4x3.png", 1024, 768);
+                        stage = 6;
+                        Next(.5);
+                    }
+                    else { report.passed = report.errors.Count == 0; Finish(); }
                     break;
             }
         }
@@ -480,7 +656,8 @@ public static class WingShotProjectTools
                 cursorWasActive = cursor.gameObject.activeSelf;
                 oldCursorPosition = cursor.rectTransform.anchoredPosition;
                 cursor.gameObject.SetActive(true);
-                cursor.rectTransform.anchoredPosition = new Vector2(60, -20);
+                cursor.rectTransform.anchoredPosition = GameManager.Instance.Scope != null && GameManager.Instance.Scope.IsAiming
+                    ? Vector2.zero : new Vector2(60, -20);
             }
         }
         try
@@ -576,6 +753,249 @@ public static class WingShotProjectTools
         if (record && report != null) { report.checks.Add(message); SaveReport(); }
     }
 
+    static void CheckPowerupCombat(GameManager game)
+    {
+        var effects = game.Powerups;
+        var shooting = game.GetComponent<ShootingSystem>();
+        var spawner = Object.FindAnyObjectByType<BirdSpawner>();
+        effects.enabled = false;
+        var crate = effects.CurrentCrate;
+        Require(crate.MaxHealth == 8 && crate.RemainingHealth == 8,
+            "Supply crates require eight normal damage to open");
+        Require(effects.SpawnCrate(WingShotPowerup.ExtraTime, false) == null, "Only one natural supply crate can be active at a time");
+        int initialHits = game.Hits, initialMisses = game.Misses, initialScore = game.score, wallet = game.Progress.Points;
+        float initialTime = game.timeRemaining;
+        var screen = Camera.main.WorldToScreenPoint(crate.transform.position);
+        Require(!crate.TryHit(0) && !crate.TryHit(-3) && crate.RemainingHealth == 8,
+            "Zero and negative crate damage are rejected");
+        for (int i = 0; i < 7; i++) Require(shooting.TryShootAt(screen), "Crate hit is accepted through its collider", false);
+        Require(crate.RemainingHealth == 1 && !crate.IsOpened && effects.ShotDamage == 1 &&
+            game.Hits == initialHits + 7 && game.Misses == initialMisses && game.score == initialScore &&
+            game.Progress.Points == wallet && game.timeRemaining == initialTime,
+            "Seven crate hits count for accuracy without premature rewards, miss penalties or lost time");
+        Require(shooting.TryShootAt(screen) && crate.IsOpened && effects.ShotDamage == 3 &&
+            effects.SniperRemaining == WingShotPowerups.WeaponDuration,
+            "The eighth hit opens the crate and activates a twelve-second sniper");
+        Require(!crate.TryHit() && effects.SniperRemaining == WingShotPowerups.WeaponDuration,
+            "An opened crate cannot grant its power-up twice");
+        var ordinarySound = game.Sounds.GetClip(WingShotSound.Shoot);
+        var sniperSound = game.Sounds.GetClip(WingShotSound.Sniper);
+        Require(ordinarySound != null && sniperSound != null && ordinarySound != sniperSound &&
+            sniperSound.length > ordinarySound.length * 2f,
+            "The sniper has a separate longer synthesized firing sound");
+        var doubleCrate = effects.SpawnCrate(WingShotPowerup.DoublePoints, false);
+        screen = Camera.main.WorldToScreenPoint(doubleCrate.transform.position);
+        Require(shooting.TryShootAt(screen) && doubleCrate.RemainingHealth == 5 &&
+            shooting.LastShotSound == WingShotSound.Sniper, "Sniper firing uses its own sound and deals three damage to crates");
+        Require(shooting.TryShootAt(screen) && doubleCrate.RemainingHealth == 2 && !doubleCrate.IsOpened,
+            "A reinforced crate survives two sniper rounds");
+        Require(shooting.TryShootAt(screen) && doubleCrate.IsOpened && effects.PointMultiplier == 2,
+            "The third sniper round opens a double-points crate");
+        var elite = MakeTarget(spawner);
+        elite.Configure(3, 60);
+        Require(shooting.TryShootAt(Camera.main.WorldToScreenPoint(elite.transform.position)) && elite.IsHit &&
+            game.score == initialScore + 120 && game.Progress.Points == wallet + 120,
+            "A sniper kills a three-hit bird in one shot and double points awards 120 score and currency");
+        effects.Activate(WingShotPowerup.DoublePoints);
+        Require(effects.DoublePointsRemaining == WingShotPowerups.DoublePointsDuration && effects.PointMultiplier == 2,
+            "Repeated double points refreshes its duration without multiplying to four times");
+        int beforeMiss = game.score;
+        float beforeMissTime = game.timeRemaining;
+        game.RegisterShot(false);
+        Require(game.score == beforeMiss - 10 && game.timeRemaining == beforeMissTime - 1f &&
+            game.Progress.Points == wallet + 120,
+            "Double points does not double miss penalties or remove saved currency");
+        game.timeRemaining = game.roundDuration - 2f;
+        var timeCrate = effects.SpawnCrate(WingShotPowerup.ExtraTime, false);
+        screen = Camera.main.WorldToScreenPoint(timeCrate.transform.position);
+        for (int i = 0; i < 2; i++) shooting.TryShootAt(screen);
+        float beforeTimeBoost = game.timeRemaining;
+        Require(shooting.TryShootAt(screen) && timeCrate.IsOpened &&
+            game.timeRemaining == beforeTimeBoost + 10f && game.timeRemaining > game.roundDuration,
+            "A time crate adds exactly ten seconds and can extend the initial round duration");
+        Require(!timeCrate.TryHit(3) && game.timeRemaining == beforeTimeBoost + 10f,
+            "The same time crate cannot extend the timer twice");
+        var slowCrate = effects.SpawnCrate(WingShotPowerup.SlowBirds, false);
+        screen = Camera.main.WorldToScreenPoint(slowCrate.transform.position);
+        for (int i = 0; i < 3; i++) shooting.TryShootAt(screen);
+        Require(slowCrate.IsOpened && effects.BirdSpeedMultiplier == .5f && effects.SlowRemaining == 8f &&
+            effects.ShotDamage == 3 && effects.PointMultiplier == 2 && Time.timeScale == 1f,
+            "Slow birds runs alongside the sniper and double points without changing global time scale");
+        var overlapBird = MakeTarget(spawner);
+        overlapBird.Configure(3, 60);
+        var frontCrate = effects.SpawnCrate(WingShotPowerup.Sniper, false);
+        frontCrate.transform.position = overlapBird.transform.position;
+        Require(shooting.TryShootAt(Camera.main.WorldToScreenPoint(overlapBird.transform.position)) &&
+            frontCrate.RemainingHealth == 5 && overlapBird.RemainingHealth == 3,
+            "When crate and bird overlap, a shot damages only the visible front crate");
+        overlapBird.gameObject.SetActive(false);
+        Object.Destroy(overlapBird.gameObject);
+        slowProbe = MakeTarget(spawner);
+        if (game.useProceduralBirdArt)
+        {
+            slowProbe.gameObject.AddComponent<WingShotBirdVisual>();
+            slowProbe.transform.localScale = Vector3.one * 1.4f;
+            slowProbe.GetComponent<SpriteRenderer>().color = CosmeticCatalog.Birds[game.Progress.Selected(CosmeticCategory.Bird)].Color;
+        }
+        slowProbe.transform.position = new Vector3(-4f, 0f, 0f);
+        slowProbe.GetComponent<BirdMovement>().Configure(4f, 1f, BirdFlightPattern.Straight, -3f, 3f, -12f, 12f);
+        slowProbe.GetComponent<BirdMovement>().enabled = true;
+        game.UI.Refresh();
+        bool scopeFound = false;
+        foreach (var graphic in WingShotObjects.All<WingShotCrosshair>(true))
+            if (graphic.name == "Gameplay Crosshair" && graphic.style == 7) scopeFound = true;
+        Require(scopeFound, "An active sniper replaces the cosmetic cursor with its scope reticle");
+        CheckScopedView(game);
+        effects.enabled = true;
+    }
+
+    static void CheckScopedView(GameManager game)
+    {
+        var scope = game.Scope;
+        var camera = Camera.main;
+        float originalSize = camera.orthographicSize;
+        Vector3 originalPosition = camera.transform.position;
+        var crate = game.Powerups.CurrentCrate;
+        crate.gameObject.SetActive(false);
+        scope.enabled = false;
+        try
+        {
+            Require(scope.SetAiming(true, scope.AimScreenPosition), "An active sniper accepts scope aiming");
+            for (int i = 0; i < 20; i++) scope.AdvanceView(.05f, Vector2.zero);
+            Require(scope.IsAiming && Mathf.Abs(camera.orthographicSize - originalSize * .5f) < .01f &&
+                scope.ZoomAmount > .99f && (!Application.isFocused || Application.isBatchMode || Cursor.lockState == CursorLockMode.Locked),
+                "Scope smoothly reaches two-times optical zoom and centers mouse aiming");
+            var target = MakeTarget(Object.FindAnyObjectByType<BirdSpawner>());
+            target.Configure(3, 60);
+            target.gameObject.AddComponent<WingShotBirdVisual>();
+            target.GetComponent<SpriteRenderer>().color = CosmeticCatalog.Birds[game.Progress.Selected(CosmeticCategory.Bird)].Color;
+            game.UI.Refresh();
+            game.UI.SendMessage("LateUpdate");
+            Canvas.ForceUpdateCanvases();
+            var lens = game.UI.GetComponentInChildren<WingShotScopeOverlay>();
+            if (lens == null) lens = Object.FindAnyObjectByType<WingShotScopeOverlay>();
+            Require(lens != null && lens.gameObject.activeInHierarchy && lens.rectTransform.rect.width > 100f &&
+                lens.canvasRenderer.GetMesh() != null && lens.canvasRenderer.GetMesh().vertexCount > 100,
+                "The scoped view renders a full-size circular aperture and graduated reticle");
+            if (SessionState.GetBool("WingShot.Checks.Capture", false))
+            {
+                CaptureFrame("Logs/WingShot-Sniper-Scope.png");
+                CaptureFrame("Logs/WingShot-Sniper-Scope-4x3.png", 1024, 768);
+            }
+            Require(game.GetComponent<ShootingSystem>().TryShootAt(scope.AimScreenPosition) && target.IsHit,
+                "A centered scope shot hits the magnified bird through the real collider path");
+            scope.AdvanceView(1f, new Vector2(10000f, 10000f));
+            Require(camera.transform.position.x > originalPosition.x && camera.transform.position.y > originalPosition.y &&
+                camera.transform.position.x <= originalPosition.x + originalSize * .5f * camera.aspect + .01f &&
+                camera.transform.position.y <= originalPosition.y + originalSize * .5f + .01f,
+                "Mouse movement pans scoped aim and stays inside the original meadow");
+            scope.SetAiming(false);
+            for (int i = 0; i < 20; i++) scope.AdvanceView(.05f, Vector2.zero);
+            Require(Mathf.Abs(camera.orthographicSize - originalSize) < .01f &&
+                Vector3.Distance(camera.transform.position, originalPosition) < .01f && Cursor.lockState == CursorLockMode.None,
+                "Releasing aim restores normal camera size, position and cursor behavior");
+            scope.SetAiming(true, scope.AimScreenPosition);
+            scope.AdvanceView(.25f, Vector2.zero);
+            game.PauseGame();
+            Require(!scope.IsAiming && scope.ZoomAmount == 0f && Cursor.lockState == CursorLockMode.None,
+                "Pause immediately exits the scope and releases the cursor");
+            game.ResumeGame();
+        }
+        finally
+        {
+            scope.ResetView();
+            scope.enabled = true;
+            crate.gameObject.SetActive(true);
+            game.UI.SendMessage("LateUpdate");
+        }
+    }
+
+    static void CaptureCrateTypes(GameManager game)
+    {
+        var original = game.Powerups.CurrentCrate;
+        var previews = new List<GameObject>();
+        try
+        {
+            if (original != null) original.gameObject.SetActive(false);
+            for (int i = 0; i < 4; i++)
+            {
+                var preview = new GameObject("Crate preview", typeof(SpriteRenderer), typeof(BoxCollider2D));
+                previews.Add(preview);
+                preview.GetComponent<SpriteRenderer>().sharedMaterial = original.GetComponent<SpriteRenderer>().sharedMaterial;
+                preview.transform.position = Camera.main.ViewportToWorldPoint(new Vector3(.15f + i * .23f, .43f,
+                    Mathf.Abs(Camera.main.transform.position.z)));
+                preview.transform.localScale = Vector3.one * 1.25f;
+                var target = preview.AddComponent<WingShotCrate>();
+                target.Initialize(game, (WingShotPowerup)i, 8, false);
+                target.enabled = false;
+            }
+            CaptureFrame("Logs/WingShot-Crate-Rewards.png");
+            CaptureFrame("Logs/WingShot-Crate-Rewards-4x3.png", 1024, 768);
+        }
+        finally
+        {
+            foreach (var preview in previews) { preview.SetActive(false); Object.Destroy(preview); }
+            if (original != null) original.gameObject.SetActive(true);
+        }
+    }
+
+    static void CheckCombatAndPenalties(GameManager game, BirdSpawner spawner, ShootingSystem shooting, Vector2 screen)
+    {
+        float beforeTime = game.timeRemaining;
+        int wallet = game.Progress.Points;
+        Require(shooting.TryShootAt(screen) && game.score == -10 &&
+            Mathf.Approximately(game.timeRemaining, beforeTime - 1f),
+            "Repeated misses still subtract ten points below zero and one second each");
+        var sturdy = MakeTarget(spawner);
+        sturdy.Configure(2, 30);
+        int hits = game.Hits;
+        Require(shooting.TryShootAt(screen) && game.Hits == hits + 1 && game.score == -10 &&
+            sturdy.RemainingHealth == 1 && !sturdy.IsHit && sturdy.GetComponent<Collider2D>().enabled &&
+            game.Progress.Points == wallet,
+            "First hit damages a two-hit bird, counts for accuracy, and awards no premature reward");
+        Require(shooting.TryShootAt(screen) && sturdy.IsHit && sturdy.RemainingHealth == 0 &&
+            game.score == 20 && game.Progress.Points == wallet + 30 && game.EarnedPoints == 40,
+            "Second hit defeats a two-hit bird and pays exactly thirty points once");
+        Require(!sturdy.TryHit(), "A defeated multi-hit bird rejects additional damage");
+        var elite = MakeTarget(spawner);
+        elite.Configure(3, 60);
+        Require(shooting.TryShootAt(screen) && elite.RemainingHealth == 2 && !elite.IsHit && game.score == 20,
+            "An elite bird survives its first shot");
+        Require(shooting.TryShootAt(screen) && elite.RemainingHealth == 1 && !elite.IsHit && game.score == 20,
+            "An elite bird survives its second shot");
+        Require(shooting.TryShootAt(screen) && elite.IsHit && game.score == 80 &&
+            game.Progress.Points == wallet + 90 && game.EarnedPoints == 100,
+            "Third hit defeats an elite bird and pays exactly sixty points");
+        int level = game.DifficultyLevel;
+        game.RegisterShot(false);
+        Require(game.DifficultyLevel == level && game.EarnedPoints == 100,
+            "Misses do not reduce flight difficulty or erase already earned rewards");
+        Require(game.Progress.BestScore == 0, "Provisional scores are not saved as best before miss penalties settle");
+        Require(game.Shots == game.Hits + game.Misses &&
+            Mathf.Approximately(game.Accuracy, 100f * game.Hits / game.Shots),
+            "Multi-hit damage and misses both contribute correctly to accuracy");
+    }
+
+    static void CheckLandscapeThemes(GameManager game)
+    {
+        int original = game.Progress.Selected(CosmeticCategory.Background);
+        int layers = game.Landscape.GetComponentsInChildren<SpriteRenderer>().Length;
+        for (int i = 0; i < CosmeticCatalog.Backgrounds.Length; i++)
+        {
+            game.Landscape.Apply(i);
+            Require(Camera.main.backgroundColor == CosmeticCatalog.Backgrounds[i].Color,
+                "Scenery theme applies: " + CosmeticCatalog.Backgrounds[i].Name);
+        }
+        Require(layers == 25 && game.Landscape.GetComponentsInChildren<SpriteRenderer>().Length == layers &&
+            game.Landscape.GetComponentsInChildren<Collider2D>().Length == 0,
+            "Switching scenery reuses cloud and wind layers without adding colliders or duplicate renderers");
+        var ground = GameObject.Find("Grass").GetComponent<SpriteRenderer>();
+        var woodland = game.Landscape.transform.Find("Wing Shot Woodland").GetComponent<SpriteRenderer>();
+        Require(ground.sortingOrder < woodland.sortingOrder,
+            "The original grass placeholder does not cover the new stream, fence and flowers");
+        game.Landscape.Apply(original);
+    }
+
     // Check purchases and saved selections using temporary PlayerPrefs keys.
     static void CheckEconomy()
     {
@@ -601,6 +1021,28 @@ public static class WingShotProjectTools
                 "PlayerPrefs reload preserves balance, purchases, selections, best score and sound preference");
             Require(!reloaded.UnlockAndSelect(CosmeticCategory.Bird, -1) &&
                 !reloaded.UnlockAndSelect(CosmeticCategory.Bird, 100), "Invalid cosmetic indices are rejected");
+            progress.Earn(100000, 500);
+            foreach (CosmeticCategory category in Enum.GetValues(typeof(CosmeticCategory)))
+            {
+                var items = CosmeticCatalog.Items(category);
+                Require(items.Length == 7 && items[items.Length - 1].Cost >= 4500,
+                    "Seven styles and a high-price goal exist in " + category);
+                var ids = new HashSet<string>();
+                for (int i = 0; i < items.Length; i++)
+                {
+                    Require(ids.Add(items[i].Id), "Cosmetic IDs are unique in " + category, false);
+                    int before = progress.Points;
+                    bool owned = progress.IsUnlocked(category, i);
+                    Require(progress.UnlockAndSelect(category, i) &&
+                        progress.Points == before - (owned ? 0 : items[i].Cost),
+                        "Every catalog purchase deducts its exact price", false);
+                    Require(new CosmeticProgress(prefix).Selected(category) == i,
+                        "Every catalog selection persists", false);
+                }
+            }
+            Require(progress.Selected(CosmeticCategory.Crosshair) == 6 &&
+                progress.Selected(CosmeticCategory.Bird) == 6 && progress.Selected(CosmeticCategory.Background) == 6,
+                "Premium cosmetics purchase and persist in every category");
         }
         finally { foreach (var key in PreferenceKeys(prefix)) PlayerPrefs.DeleteKey(key.key); PlayerPrefs.Save(); }
     }

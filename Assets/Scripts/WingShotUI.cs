@@ -24,6 +24,11 @@ public class WingShotUI : MonoBehaviour
     TMP_Text stats, level, feedback, mainProgress, customizationPoints, customizationMessage;
     TMP_Text resultStats, resultProgress;
     TMP_Text mainSoundLabel, pauseSoundLabel;
+    TMP_Text powerupStatus;
+    GameObject sniperClock;
+    TMP_Text sniperSeconds;
+    RectTransform sniperFill;
+    WingShotScopeOverlay scopeOverlay;
     WingShotCrosshair crosshair;
     float feedbackUntil;
     // Store each shop button with the category and style it controls.
@@ -91,6 +96,10 @@ public class WingShotUI : MonoBehaviour
     void BuildHud()
     {
         hud = FullRect("Gameplay HUD", canvas.transform);
+        var scopeObject = FullRect("Scope View", hud.transform);
+        scopeOverlay = scopeObject.AddComponent<WingShotScopeOverlay>();
+        scopeOverlay.raycastTarget = false;
+        scopeObject.SetActive(false);
         var bar = Panel("Scoreboard", hud.transform, new Color(Cream.r, Cream.g, Cream.b, .94f), false);
         var r = bar.GetComponent<RectTransform>();
         r.anchorMin = new Vector2(0, 1); r.anchorMax = Vector2.one;
@@ -110,9 +119,26 @@ public class WingShotUI : MonoBehaviour
         level = Label(hud.transform, "", 15, Navy, new Vector2(0, -62), new Vector2(540, 24), new Vector2(.5f, 1));
         var pause = MakeButton(hud.transform, "PAUSE", new Vector2(-65, -40), new Vector2(108, 44), game.PauseGame);
         Place(pause.GetComponent<RectTransform>(), new Vector2(108, 44), new Vector2(-65, -40), Vector2.one);
-        Label(hud.transform, "LEFT CLICK TO SHOOT    /    ESC TO PAUSE", 16, Navy,
-            new Vector2(0, 27), new Vector2(650, 30), new Vector2(.5f, 0));
-        feedback = Label(hud.transform, "", 26, Navy, new Vector2(0, -117), new Vector2(440, 45), new Vector2(.5f, 1));
+        Label(hud.transform, "CLICK TO SHOOT  /  ESC TO PAUSE\nMISS: -10 POINTS & -1 SECOND  /  HEALTH PIPS = HITS LEFT", 15, Cream,
+            new Vector2(0, 30), new Vector2(780, 46), new Vector2(.5f, 0));
+        feedback = Label(hud.transform, "", 26, Navy, new Vector2(0, -117), new Vector2(650, 45), new Vector2(.5f, 1));
+        var powerupBar = Panel("Active Powerups", hud.transform, new Color(.08f, .17f, .24f, .88f), false);
+        Place(powerupBar.rectTransform, new Vector2(940, 42), new Vector2(0, 87), new Vector2(.5f, 0));
+        powerupStatus = Label(powerupBar.transform, "", 18, Cream, Vector2.zero, new Vector2(915, 36));
+        var clock = Panel("Sniper Countdown", hud.transform, new Color(.08f, .17f, .24f, .94f), false);
+        sniperClock = clock.gameObject;
+        Place(clock.rectTransform, new Vector2(258, 94), new Vector2(-143, -151), Vector2.one);
+        sniperSeconds = Label(clock.transform, "", 23, WingShotPowerups.Tint(WingShotPowerup.Sniper),
+            new Vector2(0, 21), new Vector2(240, 30));
+        var track = Panel("Sniper Time Track", clock.transform, new Color(.22f, .34f, .40f), false);
+        Place(track.rectTransform, new Vector2(222, 7), new Vector2(0, -3));
+        var fill = Panel("Sniper Time Remaining", track.transform, WingShotPowerups.Tint(WingShotPowerup.Sniper), false);
+        sniperFill = fill.rectTransform;
+        sniperFill.anchorMin = new Vector2(0, 0);
+        sniperFill.anchorMax = new Vector2(1, 1);
+        sniperFill.offsetMin = sniperFill.offsetMax = Vector2.zero;
+        Label(clock.transform, "HOLD RIGHT CLICK TO SCOPE", 13, Cream, new Vector2(0, -28), new Vector2(245, 24));
+        sniperClock.SetActive(false);
     }
 
     // Create the title screen with Start Game, Customize, and sound controls.
@@ -127,8 +153,8 @@ public class WingShotUI : MonoBehaviour
         var start = MakeButton(card, "START GAME", new Vector2(0, -70), new Vector2(430, 66), game.StartGame);
         firstButtons[WingShotState.MainMenu] = start;
         MakeButton(card, "CUSTOMIZE", new Vector2(0, -151), new Vector2(430, 60), game.OpenCustomization);
-        Label(card, "60 seconds. +10 per hit. Spend earned points on your own style.", 16, Cream,
-            new Vector2(0, -215), new Vector2(745, 30));
+        Label(card, "60 seconds. Miss: -10 points & -1 second. Birds: +10 / +30 / +60.\nBreak 8-HP crates for a sniper, double points, time, or slower birds!", 16, Cream,
+            new Vector2(0, -212), new Vector2(745, 46));
         var sound = MakeButton(card, "", new Vector2(0, -253), new Vector2(200, 32), game.ToggleSound);
         mainSoundLabel = sound.GetComponentInChildren<TMP_Text>();
         mainSoundLabel.fontSize = 14;
@@ -151,28 +177,58 @@ public class WingShotUI : MonoBehaviour
         pauseSoundLabel.fontSize = 14;
     }
 
-    // Create three columns of purchasable and selectable cosmetic styles.
+    // Keep every category visible while the larger catalog scrolls within the card.
     void BuildCustomization()
     {
         customization = Overlay("Customization");
         var card = Card(customization.transform, "Customization Card", new Vector2(1080, 620));
         Label(card, "MAKE IT YOURS", 43, Yellow, new Vector2(-150, 254), new Vector2(710, 65));
         customizationPoints = Label(card, "", 24, Cream, new Vector2(370, 254), new Vector2(280, 60));
-        Label(card, "Earn points with every hit. Unlock once, keep forever.", 19, Muted,
+        Label(card, "Unlock once, keep forever. Scroll for premium styles up to 5,000 points.", 19, Muted,
             new Vector2(0, 195), new Vector2(980, 35));
+        var scrollPanel = Panel("Cosmetic Scroll", card, new Color(.08f, .18f, .26f), true);
+        Place(scrollPanel.rectTransform, new Vector2(1036, 340), new Vector2(0, -25));
+        var scroll = scrollPanel.gameObject.AddComponent<ScrollRect>();
+        var viewport = FullRect("Catalog Viewport", scrollPanel.transform).GetComponent<RectTransform>();
+        viewport.offsetMax = new Vector2(-20f, 0f);
+        viewport.gameObject.AddComponent<RectMask2D>();
+        var content = FullRect("Catalog Content", viewport).GetComponent<RectTransform>();
+        content.anchorMin = content.anchorMax = new Vector2(.5f, 1f);
+        content.pivot = new Vector2(.5f, 1f);
+        int rows = Mathf.Max(CosmeticCatalog.Crosshairs.Length,
+            Mathf.Max(CosmeticCatalog.Birds.Length, CosmeticCatalog.Backgrounds.Length));
+        content.sizeDelta = new Vector2(1016f, rows * 100f);
+        content.anchoredPosition = Vector2.zero;
+        scroll.viewport = viewport;
+        scroll.content = content;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 40f;
+        var track = Panel("Catalog Scrollbar", scrollPanel.transform, new Color(.18f, .31f, .40f), true);
+        Place(track.rectTransform, new Vector2(10f, 330f), new Vector2(508f, 0f));
+        var handle = Panel("Scroll Handle", track.transform, Muted, true);
+        Stretch(handle.rectTransform);
+        var scrollbar = track.gameObject.AddComponent<Scrollbar>();
+        scrollbar.handleRect = handle.rectTransform;
+        scrollbar.targetGraphic = handle;
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+        scroll.verticalScrollbar = scrollbar;
         string[] headings = { "CROSSHAIRS", "BIRD COLORS", "BACKGROUNDS" };
         for (int categoryIndex = 0; categoryIndex < 3; categoryIndex++)
         {
             var category = (CosmeticCategory)categoryIndex;
-            float x = (categoryIndex - 1) * 350;
-            Label(card, headings[categoryIndex], 18, Cream, new Vector2(x, 143), new Vector2(325, 35));
+            float x = (categoryIndex - 1) * 338;
+            Label(card, headings[categoryIndex], 18, Cream, new Vector2(x - 10f, 164), new Vector2(325, 30));
             var items = CosmeticCatalog.Items(category);
             for (int i = 0; i < items.Length; i++)
             {
                 int capturedIndex = i;
                 var capturedCategory = category;
-                var button = MakeButton(card, "", new Vector2(x, 65 - i * 105), new Vector2(324, 90),
+                var button = MakeButton(content, "", Vector2.zero, new Vector2(320, 88),
                     () => game.SelectCosmetic(capturedCategory, capturedIndex));
+                Place(button.GetComponent<RectTransform>(), new Vector2(320, 88),
+                    new Vector2(x, -48f - i * 100f), new Vector2(.5f, 1f));
                 var label = button.GetComponentInChildren<TMP_Text>();
                 label.fontSize = 20; label.fontSizeMin = 14;
                 Place(label.rectTransform, new Vector2(234, 80), new Vector2(35, 0));
@@ -278,20 +334,39 @@ public class WingShotUI : MonoBehaviour
         game.timerText.text = "TIME  " + Mathf.CeilToInt(game.timeRemaining).ToString("00");
         game.timerText.color = game.timeRemaining <= 10f ? new Color(.75f, .22f, .22f) : Navy;
         stats.text = "HITS " + game.Hits + "    MISSES " + game.Misses + "    ACCURACY " + game.Accuracy.ToString("0") + "%";
-        level.text = "FLIGHT LEVEL " + game.DifficultyLevel + (game.DifficultyLevel == 10 ? "  /  MAX" : "  /  NEXT AT " + game.DifficultyLevel * 50 + " PTS");
+        level.text = "FLIGHT LEVEL " + game.DifficultyLevel + (game.DifficultyLevel == 10 ? "  /  MAX" : "  /  NEXT AT " + game.DifficultyLevel * 50 + " EARNED PTS");
         mainProgress.text = "BEST  " + game.Progress.BestScore + "       /       POINTS  " + game.Progress.Points;
         customizationPoints.text = game.Progress.Points + " POINTS";
         game.finalScoreText.text = "SCORE  " + game.score;
         resultStats.text = game.Accuracy.ToString("0") + "% ACCURACY\n" + game.Hits + " HITS    /    " + game.Misses + " MISSES";
-        resultProgress.text = "+" + game.score + " POINTS EARNED   /   BEST " + game.Progress.BestScore +
+        resultProgress.text = "+" + game.EarnedPoints + " POINTS EARNED   /   BEST " + game.Progress.BestScore +
             "\n" + game.Progress.Points + " POINTS TO CUSTOMIZE";
         string sound = game.Progress.Muted ? "SOUND: OFF" : "SOUND: ON";
         mainSoundLabel.text = pauseSoundLabel.text = sound;
+        if (powerupStatus != null && game.Powerups != null)
+        {
+            var effects = game.Powerups;
+            string active = "";
+            if (effects.SniperRemaining > 0f) active = "SNIPER: 3 DAMAGE  " + Mathf.CeilToInt(effects.SniperRemaining) + "s";
+            if (effects.DoublePointsRemaining > 0f)
+                active += (active.Length > 0 ? "   /   " : "") + "2X POINTS  " + Mathf.CeilToInt(effects.DoublePointsRemaining) + "s";
+            if (effects.SlowRemaining > 0f)
+                active += (active.Length > 0 ? "   /   " : "") + "SLOW BIRDS  " + Mathf.CeilToInt(effects.SlowRemaining) + "s";
+            powerupStatus.text = active.Length == 0 ? "SUPPLY CRATES: 8 HP  /  SHOOT TO OPEN & CLAIM THE REWARD" : active;
+        }
+        if (sniperClock != null && game.Powerups != null)
+        {
+            float remaining = game.Powerups.SniperRemaining;
+            sniperClock.SetActive(remaining > 0f);
+            sniperSeconds.text = "SNIPER  " + remaining.ToString("0.0") + "s";
+            sniperFill.anchorMax = new Vector2(Mathf.Clamp01(remaining / WingShotPowerups.WeaponDuration), 1f);
+        }
         if (crosshair != null)
         {
             int index = game.Progress.Selected(CosmeticCategory.Crosshair);
-            crosshair.SetStyle(index);
-            crosshair.color = CosmeticCatalog.Crosshairs[index].Color;
+            crosshair.SetStyle(game.Powerups != null && game.Powerups.SniperRemaining > 0f ? 7 : index);
+            crosshair.color = game.Powerups != null && game.Powerups.SniperRemaining > 0f
+                ? WingShotPowerups.Tint(WingShotPowerup.Sniper) : CosmeticCatalog.Crosshairs[index].Color;
         }
         // Keep each shop entry matched to its saved ownership and selection.
         foreach (var entry in cosmeticButtons)
@@ -307,12 +382,35 @@ public class WingShotUI : MonoBehaviour
     }
 
     // Show a short hit or miss message and flash the crosshair.
-    public void ShotFeedback(bool hit)
+    public void ShotFeedback(bool hit, int points = 10, int remainingHealth = 0)
     {
-        feedback.text = hit ? "HIT  +10" : "MISS";
+        feedback.text = !hit ? "MISS  -10 POINTS / -1 SECOND" : remainingHealth > 0
+            ? "HIT!  " + remainingHealth + (remainingHealth == 1 ? " HIT LEFT" : " HITS LEFT")
+            : "BIRD DOWN  +" + points;
         feedback.color = hit ? new Color(.12f, .36f, .23f) : new Color(.68f, .17f, .18f);
         feedbackUntil = Time.unscaledTime + .5f;
         crosshair.Pulse(hit);
+        Refresh();
+    }
+
+    public void CrateFeedback(int health, int maximum)
+    {
+        feedback.text = "CRATE HIT  " + health + " / " + maximum + " HP";
+        feedback.color = Navy;
+        feedbackUntil = Time.unscaledTime + .6f;
+    }
+
+    public void PowerupFeedback(WingShotPowerup kind)
+    {
+        switch (kind)
+        {
+            case WingShotPowerup.Sniper: feedback.text = "SNIPER!  HOLD RIGHT CLICK TO SCOPE"; break;
+            case WingShotPowerup.DoublePoints: feedback.text = "DOUBLE POINTS!  12 SECONDS"; break;
+            case WingShotPowerup.ExtraTime: feedback.text = "+10 SECONDS!"; break;
+            default: feedback.text = "SLOW BIRDS!  8 SECONDS"; break;
+        }
+        feedback.color = Navy;
+        feedbackUntil = Time.unscaledTime + 1.5f;
         Refresh();
     }
 
@@ -323,7 +421,14 @@ public class WingShotUI : MonoBehaviour
     void LateUpdate()
     {
         if (!built || crosshair == null) return;
-        Vector2 pointer = WingShotInput.PointerPosition;
+        Vector2 pointer = game.Scope != null && game.Scope.IsAiming
+            ? game.Scope.AimScreenPosition : WingShotInput.PointerPosition;
+        if (scopeOverlay != null)
+        {
+            float zoom = game.Scope == null ? 0f : game.Scope.ZoomAmount;
+            scopeOverlay.gameObject.SetActive(game.IsPlaying && zoom > .001f);
+            scopeOverlay.SetZoom(zoom);
+        }
         bool visible = game.IsPlaying && Application.isFocused && WingShotInput.HasPointer &&
             pointer.x >= 0 && pointer.y >= 0 && pointer.x < Screen.width && pointer.y < Screen.height;
         crosshair.gameObject.SetActive(visible);

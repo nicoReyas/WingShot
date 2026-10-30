@@ -8,6 +8,7 @@ public class ShootingSystem : MonoBehaviour
 {
     readonly List<RaycastResult> uiHits = new List<RaycastResult>();
     GameManager game;
+    public WingShotSound LastShotSound { get; private set; }
 
     // Find the GameManager on the same object.
     void Awake() { game = GetComponent<GameManager>(); }
@@ -17,7 +18,8 @@ public class ShootingSystem : MonoBehaviour
     {
         if (game == null || !game.IsPlaying || !Application.isFocused ||
             Time.frameCount <= game.StateChangedFrame) return;
-        if (WingShotInput.ShootPressed) TryShootAt(WingShotInput.PointerPosition);
+        if (WingShotInput.ShootPressed) TryShootAt(game.Scope != null && game.Scope.IsAiming
+            ? game.Scope.AimScreenPosition : WingShotInput.PointerPosition);
     }
 
     // Public for other input adapters and the editor smoke test. Exactly one result per shot.
@@ -31,23 +33,38 @@ public class ShootingSystem : MonoBehaviour
         if (camera == null || !camera.pixelRect.Contains(screenPosition) || IsPointerOverUI(screenPosition))
             return false;
 
-        game.Sounds.Play(WingShotSound.Shoot);
+        LastShotSound = game.Powerups.ShotSound;
+        game.Sounds.Play(LastShotSound);
         // Update collider positions before checking this frame's shot.
         Physics2D.SyncTransforms();
         var hits = Physics2D.GetRayIntersectionAll(camera.ScreenPointToRay(screenPosition), camera.farClipPlane);
         // When birds overlap, prefer the one drawn in front.
         BirdTarget target = null;
+        WingShotCrate crate = null;
         int topOrder = int.MinValue;
         foreach (var hit in hits)
         {
             var candidate = hit.collider.GetComponentInParent<BirdTarget>();
-            if (candidate == null || candidate.IsHit) continue;
-            var sprite = candidate.GetComponent<SpriteRenderer>();
+            var candidateCrate = hit.collider.GetComponentInParent<WingShotCrate>();
+            if ((candidate == null || candidate.IsHit) && (candidateCrate == null || candidateCrate.IsOpened)) continue;
+            var sprite = hit.collider.GetComponent<SpriteRenderer>();
             int order = sprite == null ? 0 : sprite.sortingOrder;
-            if (target == null || order > topOrder) { target = candidate; topOrder = order; }
+            if (order > topOrder) { target = candidate; crate = candidateCrate; topOrder = order; }
         }
-        bool didHit = target != null && target.TryHit();
-        game.RegisterShot(didHit, didHit ? target.points : 0);
+        if (crate != null && crate.TryHit(game.Powerups.ShotDamage))
+        {
+            game.RegisterShot(true, 0, crate.RemainingHealth);
+            if (crate.IsOpened) game.UI.PowerupFeedback(crate.Kind);
+            else
+            {
+                game.UI.CrateFeedback(crate.RemainingHealth, crate.MaxHealth);
+                game.Sounds.Play(WingShotSound.CrateHit);
+            }
+            return true;
+        }
+        bool didHit = target != null && target.TryHit(game.Powerups.ShotDamage);
+        game.RegisterShot(didHit, didHit && target.IsHit ? target.points : 0,
+            didHit ? target.RemainingHealth : 0);
         game.Sounds.Play(didHit ? WingShotSound.Hit : WingShotSound.Miss);
         return true;
     }

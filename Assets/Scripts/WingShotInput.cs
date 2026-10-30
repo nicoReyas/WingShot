@@ -6,6 +6,34 @@ using UnityEngine.InputSystem;
 // All gameplay input goes through one adapter, including projects set to Input System only.
 public static class WingShotInput
 {
+    public static bool ScopeHeld
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Mouse.current != null && Mouse.current.rightButton.isPressed;
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return Input.GetMouseButton(1);
+#else
+            return false;
+#endif
+        }
+    }
+
+    public static Vector2 PointerDelta
+    {
+        get
+        {
+#if ENABLE_INPUT_SYSTEM
+            return Mouse.current == null ? Vector2.zero : Mouse.current.delta.ReadValue();
+#elif ENABLE_LEGACY_INPUT_MANAGER
+            return new Vector2(Input.GetAxisRaw("Mouse X"), Input.GetAxisRaw("Mouse Y")) * 12f;
+#else
+            return Vector2.zero;
+#endif
+        }
+    }
+
     // Check for a connected mouse before hiding the system cursor.
     public static bool HasPointer
     {

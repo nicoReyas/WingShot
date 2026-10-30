@@ -33,16 +33,21 @@ public class GameManager : MonoBehaviour
     public bool IsPlaying => State == WingShotState.Playing;
     [field: SerializeField] public int Hits { get; private set; }
     [field: SerializeField] public int Misses { get; private set; }
+    [field: SerializeField] public int EarnedPoints { get; private set; }
+    public const int MissPointPenalty = 10;
+    public const float MissTimePenalty = 1f;
     // Accuracy is zero until the player has taken at least one shot.
     public int Shots => Hits + Misses;
     public float Accuracy => Shots == 0 ? 0f : 100f * Hits / Shots;
-    public int DifficultyLevel => Mathf.Clamp(1 + score / 50, 1, 10);
+    public int DifficultyLevel => Mathf.Clamp(1 + EarnedPoints / 50, 1, 10);
     [field: SerializeField] public int StateChangedFrame { get; private set; }
     // Shared helpers for saved progress, menus, sound, and the background.
     public CosmeticProgress Progress { get; private set; }
     [field: SerializeField] public WingShotUI UI { get; private set; }
     [field: SerializeField] public WingShotAudio Sounds { get; private set; }
     [field: SerializeField] public WingShotLandscape Landscape { get; private set; }
+    [field: SerializeField] public WingShotPowerups Powerups { get; private set; }
+    [field: SerializeField] public WingShotScope Scope { get; private set; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     // Clear the shared GameManager reference before a new Play Mode session.
@@ -58,6 +63,10 @@ public class GameManager : MonoBehaviour
         Sounds = GetComponent<WingShotAudio>();
         if (Sounds == null) Sounds = gameObject.AddComponent<WingShotAudio>();
         if (GetComponent<ShootingSystem>() == null) gameObject.AddComponent<ShootingSystem>();
+        Powerups = GetComponent<WingShotPowerups>();
+        if (Powerups == null) Powerups = gameObject.AddComponent<WingShotPowerups>();
+        Scope = GetComponent<WingShotScope>();
+        if (Scope == null) Scope = gameObject.AddComponent<WingShotScope>();
     }
 
     // Recover needed references if Unity reloads scripts during Play Mode.
@@ -70,6 +79,8 @@ public class GameManager : MonoBehaviour
         if (Sounds == null) Sounds = GetComponent<WingShotAudio>();
         if (UI == null) UI = GetComponent<WingShotUI>();
         if (Landscape == null) Landscape = GetComponent<WingShotLandscape>();
+        if (Powerups == null) Powerups = GetComponent<WingShotPowerups>();
+        if (Scope == null) Scope = GetComponent<WingShotScope>();
     }
 
     // Build the menus and scenery, apply saved styles, and show the main menu.
@@ -105,9 +116,11 @@ public class GameManager : MonoBehaviour
     // Clear old birds and start a fresh round with zero score and full time.
     public void StartGame()
     {
+        Powerups.ResetRound();
         ClearBirds();
         score = 0;
         Hits = Misses = 0;
+        EarnedPoints = 0;
         timeRemaining = Mathf.Max(1f, roundDuration);
         ChangeState(WingShotState.Playing);
         foreach (var spawner in WingShotObjects.All<BirdSpawner>())
@@ -132,6 +145,8 @@ public class GameManager : MonoBehaviour
     // Remove any remaining birds and return to the title screen.
     public void ReturnToMainMenu()
     {
+        if (IsPlaying || State == WingShotState.Paused) Progress.RecordScore(score);
+        Powerups.ResetRound();
         ClearBirds();
         ChangeState(WingShotState.MainMenu);
     }
@@ -147,18 +162,30 @@ public class GameManager : MonoBehaviour
     {
         if (!IsPlaying) return;
         timeRemaining = 0f;
+        Powerups.ResetRound();
         ChangeState(WingShotState.GameOver);
         Sounds.Play(WingShotSound.GameOver);
-        Progress.Save();
+        Progress.RecordScore(score);
     }
 
     // Count the shot, award points for a hit, and update the shot feedback.
-    public void RegisterShot(bool hit, int points = 10)
+    public void RegisterShot(bool hit, int points = 10, int remainingHealth = 0)
     {
         if (!IsPlaying) return;
-        if (hit) { Hits++; AddScore(points); }
-        else Misses++;
-        if (UI != null) UI.ShotFeedback(hit);
+        if (hit)
+        {
+            Hits++;
+            points = (int)System.Math.Min(int.MaxValue, (long)Mathf.Max(0, points) * Powerups.PointMultiplier);
+            AddScore(points);
+        }
+        else
+        {
+            Misses++;
+            score = (int)System.Math.Max(int.MinValue, (long)score - MissPointPenalty);
+            timeRemaining = Mathf.Max(0f, timeRemaining - MissTimePenalty);
+        }
+        if (UI != null) UI.ShotFeedback(hit, points, remainingHealth);
+        if (timeRemaining <= 0f) EndGame();
     }
 
     // Increase the round score and immediately save the earned cosmetic points.
@@ -166,7 +193,8 @@ public class GameManager : MonoBehaviour
     {
         if (!IsPlaying || points <= 0) return;
         score = (int)System.Math.Min(int.MaxValue, (long)score + points);
-        Progress.Earn(points, score);
+        EarnedPoints = (int)System.Math.Min(int.MaxValue, (long)EarnedPoints + points);
+        Progress.Earn(points, 0);
         if (UI != null) UI.Refresh();
     }
 
@@ -200,6 +228,7 @@ public class GameManager : MonoBehaviour
     // Switch screens and update time, cursor visibility, and music volume together.
     void ChangeState(WingShotState state)
     {
+        if (state != WingShotState.Playing && Scope != null) Scope.ResetView();
         State = state;
         gameOver = state == WingShotState.GameOver;
         StateChangedFrame = Time.frameCount;
@@ -234,7 +263,11 @@ public class GameManager : MonoBehaviour
     }
 
     // Save progress before the game closes.
-    void OnApplicationQuit() { Progress?.Save(); }
+    void OnApplicationQuit()
+    {
+        if (IsPlaying || State == WingShotState.Paused) Progress?.RecordScore(score);
+        else Progress?.Save();
+    }
 
     // Save progress and restore normal time and the cursor when leaving this scene.
     void OnDestroy()

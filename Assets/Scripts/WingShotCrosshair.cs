@@ -3,7 +3,7 @@ using UnityEngine.UI;
 
 public class WingShotCrosshair : MaskableGraphic
 {
-    // 0 is the classic cross, 1 is a ring, and 2 is a diamond.
+    // Shapes follow the catalog's stable order, including four premium reticles.
     public int style;
     float pulseUntil;
     bool lastHit;
@@ -40,7 +40,18 @@ public class WingShotCrosshair : MaskableGraphic
             ? (lastHit ? new Color(.4f, 1f, .6f) : new Color(1f, .5f, .46f)) : color;
         // Use the same drawing code for small cursors and larger shop previews.
         float scale = Mathf.Min(rectTransform.rect.width, rectTransform.rect.height) / 36f;
-        if (style == 1)
+        if (style == 7)
+        {
+            Ring(vh, 17f * scale, 4f * scale, ink, 48);
+            Ring(vh, 17f * scale, 1.7f * scale, fill, 48);
+            for (int i = 0; i < 4; i++)
+            {
+                var d = new Vector2(Mathf.Cos(i * Mathf.PI / 2), Mathf.Sin(i * Mathf.PI / 2));
+                Line(vh, d * 5f * scale, d * 17f * scale, 3f * scale, ink);
+                Line(vh, d * 5f * scale, d * 17f * scale, 1.2f * scale, fill);
+            }
+        }
+        else if (style == 1)
         {
             Ring(vh, 12f * scale, 5f * scale, ink, 40);
             Ring(vh, 12f * scale, 2.2f * scale, fill, 40);
@@ -49,6 +60,43 @@ public class WingShotCrosshair : MaskableGraphic
         {
             Ring(vh, 15f * scale, 5f * scale, ink, 4);
             Ring(vh, 15f * scale, 2.2f * scale, fill, 4);
+        }
+        else if (style == 3)
+        {
+            Ring(vh, 5f * scale, 4f * scale, ink, 24);
+            Ring(vh, 5f * scale, 1.8f * scale, fill, 24);
+        }
+        else if (style == 4)
+        {
+            for (int i = 0; i < 4; i++)
+            {
+                float x = i % 2 == 0 ? -1f : 1f, y = i < 2 ? -1f : 1f;
+                Vector2 corner = new Vector2(x * 14, y * 14) * scale;
+                Vector2 a = corner - new Vector2(x * 7, 0) * scale;
+                Vector2 b = corner - new Vector2(0, y * 7) * scale;
+                Line(vh, a, corner, 5f * scale, ink);
+                Line(vh, corner, b, 5f * scale, ink);
+                Line(vh, a, corner, 2f * scale, fill);
+                Line(vh, corner, b, 2f * scale, fill);
+            }
+        }
+        else if (style == 5)
+        {
+            Ring(vh, 14f * scale, 4.5f * scale, ink, 48);
+            Ring(vh, 14f * scale, 1.8f * scale, fill, 48);
+            Ring(vh, 7f * scale, 3.5f * scale, ink, 4);
+            Ring(vh, 7f * scale, 1.6f * scale, fill, 4);
+        }
+        else if (style == 6)
+        {
+            for (int i = 0; i < 8; i++)
+            {
+                float a = i * Mathf.PI / 4f;
+                var d = new Vector2(Mathf.Cos(a), Mathf.Sin(a));
+                float length = i % 2 == 0 ? 17f : 12f;
+                Line(vh, d * 6f * scale, d * length * scale, 5f * scale, ink);
+                Line(vh, d * 6f * scale, d * length * scale, 2f * scale, fill);
+            }
         }
         else
         {

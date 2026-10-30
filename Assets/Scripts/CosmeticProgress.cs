@@ -23,19 +23,31 @@ public static class CosmeticCatalog
     {
         new CosmeticItem("classic", "Classic", 0, new Color(1f, .86f, .32f)),
         new CosmeticItem("ring", "Bullseye", 75, new Color(.7f, 1f, .87f)),
-        new CosmeticItem("diamond", "Diamond", 150, new Color(1f, .68f, .76f))
+        new CosmeticItem("diamond", "Diamond", 150, new Color(1f, .68f, .76f)),
+        new CosmeticItem("pinpoint", "Pinpoint", 500, new Color(.6f, .92f, 1f)),
+        new CosmeticItem("brackets", "Tactical", 1000, new Color(.7f, 1f, .35f)),
+        new CosmeticItem("orbital", "Orbital", 2500, new Color(.77f, .65f, 1f)),
+        new CosmeticItem("star", "Supernova", 5000, new Color(1f, .94f, .63f))
     };
     public static readonly CosmeticItem[] Birds =
     {
         new CosmeticItem("amber", "Golden Finch", 0, new Color(1f, .68f, .25f)),
         new CosmeticItem("coral", "Coral Swift", 100, new Color(1f, .37f, .42f)),
-        new CosmeticItem("mint", "Mint Glider", 200, new Color(.31f, .88f, .69f))
+        new CosmeticItem("mint", "Mint Glider", 200, new Color(.31f, .88f, .69f)),
+        new CosmeticItem("azure", "Azure Streak", 500, new Color(.22f, .59f, 1f)),
+        new CosmeticItem("violet", "Royal Plumage", 1000, new Color(.67f, .36f, .95f)),
+        new CosmeticItem("frost", "Arctic Pearl", 2200, new Color(.84f, .96f, 1f)),
+        new CosmeticItem("phoenix", "Phoenix Gold", 4500, new Color(1f, .43f, .12f))
     };
     public static readonly CosmeticItem[] Backgrounds =
     {
         new CosmeticItem("day", "Blue Skies", 0, new Color(.514f, .918f, 1f)),
         new CosmeticItem("sunset", "Golden Hour", 125, new Color(.98f, .65f, .53f)),
-        new CosmeticItem("night", "Moonlit Meadow", 250, new Color(.10f, .18f, .33f))
+        new CosmeticItem("night", "Moonlit Meadow", 250, new Color(.10f, .18f, .33f)),
+        new CosmeticItem("autumn", "Autumn Grove", 600, new Color(.87f, .69f, .48f)),
+        new CosmeticItem("winter", "Alpine Frost", 1200, new Color(.58f, .76f, .87f)),
+        new CosmeticItem("aurora", "Aurora Wilds", 2400, new Color(.055f, .14f, .23f)),
+        new CosmeticItem("ember", "Ember Valley", 5000, new Color(.30f, .16f, .32f))
     };
 
     // Return the available styles for the requested cosmetic category.
@@ -112,6 +124,13 @@ public sealed class CosmeticProgress
         if (amount <= 0) return;
         Points = (int)Math.Min(int.MaxValue, (long)Points + amount);
         LifetimePoints = (int)Math.Min(int.MaxValue, (long)LifetimePoints + amount);
+        BestScore = Mathf.Max(BestScore, runScore);
+        Save();
+    }
+
+    // Record the settled score so a later miss cannot leave a provisional high score behind.
+    public void RecordScore(int runScore)
+    {
         BestScore = Mathf.Max(BestScore, runScore);
         Save();
     }
