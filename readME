@@ -1,0 +1,42 @@
+# Wing Shot
+
+## Overview
+Wing Shot is a 2D arcade shooting game developed in Unity 6 using C#. Inspired by the classic game *Duck Hunt*, players use their mouse to aim at and shoot birds flying across the screen. The goal is to earn as many points as possible before the timer runs out.
+
+## Gameplay
+- **Mouse Movement:** Aim at birds.
+- **Left Mouse Button:** Shoot birds.
+- **ESC:** Pause or resume gameplay.
+- **Scoring:** Earn 10 points for each bird hit.
+- **Difficulty:** Birds gradually become faster as the player's score increases.
+- **Timer:** Players have 60 seconds to achieve their highest score.
+- **Restart:** Players can restart after a round ends.
+
+## Features
+- Bird spawning and movement
+- Mouse-based shooting mechanics
+- Score tracking and countdown timer
+- Progressive difficulty
+- Main menu and pause functionality
+- Game-over screen with final score
+- Replay functionality
+
+## Technologies
+- **Game Engine:** Unity 6
+- **Language:** C#
+- **Platform:** Windows
+- **Interface:** Unity UI and TextMeshPro
+
+## Changes From Original Proposal
+The original proposal focused on a simple shooting gallery with unlockable cosmetic customizations, including crosshairs, backgrounds, and bird appearances.
+
+During development, the focus shifted toward creating a complete gameplay loop with reliable shooting mechanics, progressive difficulty, scoring, and menu navigation. Some originally proposed features were simplified or adjusted to prioritize gameplay functionality and stability.
+
+## Project Submission
+The project includes:
+- Unity project source code available through GitHub.
+- A gameplay demonstration video showing the game's mechanics and features.
+- Documentation describing changes from the original design proposal.
+
+## Development
+Wing Shot was developed as a 2D game programming project emphasizing gameplay mechanics, user interaction, and C# scripting in Unity.
