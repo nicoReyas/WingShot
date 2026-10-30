@@ -1,15 +1,22 @@
 using UnityEngine;
 
-// Optical zoom changes only the camera; shot damage and the round clock stay independent.
+// Focus and optical zoom leave the round clock independent of aiming and weapon bonuses.
 [DefaultExecutionOrder(25)]
 public class WingShotScope : MonoBehaviour
 {
     [Range(.3f, .8f)] public float zoomScale = .5f;
+    public const float FocusZoomScale = .9f, FocusBirdSpeed = .97f, QuickscopeWindow = .5f;
+    [SerializeField] float aimAge, nextQuickscopeAt;
+    [SerializeField] bool quickscopeShotUsed, sniperAtAimStart;
     [SerializeField] GameManager game;
     [SerializeField] Camera view;
     [SerializeField] Vector3 homePosition, aimPosition;
     [SerializeField] float homeSize;
     [field: SerializeField] public bool IsAiming { get; private set; }
+    public bool IsSniperAiming => IsAiming && game != null && game.Powerups.SniperRemaining > 0f;
+    public float AimBirdSpeedMultiplier => IsAiming && !IsSniperAiming ? FocusBirdSpeed : 1f;
+    float CurrentZoomScale => game != null && game.Powerups.SniperRemaining > 0f ? zoomScale : FocusZoomScale;
+    public float LensAmount => IsSniperAiming ? ZoomAmount : 0f;
     public float ZoomAmount => view == null || homeSize <= 0f ? 0f :
         Mathf.Clamp01((homeSize - view.orthographicSize) / (homeSize * (1f - zoomScale)));
     public Vector2 AimScreenPosition => view == null ? new Vector2(Screen.width, Screen.height) * .5f : view.pixelRect.center;
@@ -33,13 +40,19 @@ public class WingShotScope : MonoBehaviour
     void Update()
     {
         if (game == null || view == null) return;
-        if (!game.IsPlaying || game.Powerups.SniperRemaining <= 0f || !Application.isFocused)
+        if (!game.IsPlaying || !Application.isFocused)
         {
             ResetView();
             return;
         }
         bool entering = WingShotInput.ScopeHeld && !IsAiming;
         SetAiming(WingShotInput.ScopeHeld);
+        if (IsAiming && !IsSniperAiming)
+        {
+            Vector2 pointer = WingShotInput.PointerPosition;
+            aimPosition = ClampToMeadow(WorldFromViewport(new Vector2(pointer.x / Mathf.Max(1f, view.pixelWidth),
+                pointer.y / Mathf.Max(1f, view.pixelHeight))), homeSize * FocusZoomScale);
+        }
         AdvanceView(Time.unscaledDeltaTime, entering ? Vector2.zero : WingShotInput.PointerDelta);
     }
 
@@ -47,30 +60,34 @@ public class WingShotScope : MonoBehaviour
     public bool SetAiming(bool aiming, Vector2? screenPoint = null)
     {
         if (view == null || game == null) return false;
-        if (aiming && (!game.IsPlaying || game.Powerups.SniperRemaining <= 0f)) return false;
+        if (aiming && !game.IsPlaying) return false;
         if (aiming && !IsAiming)
         {
             Vector2 pointer = screenPoint ?? WingShotInput.PointerPosition;
             var point = view.ScreenToWorldPoint(new Vector3(pointer.x, pointer.y, Mathf.Abs(view.transform.position.z)));
-            aimPosition = ClampToMeadow(new Vector3(point.x, point.y, homePosition.z), homeSize * zoomScale);
+            aimPosition = ClampToMeadow(new Vector3(point.x, point.y, homePosition.z), homeSize * CurrentZoomScale);
+            aimAge = 0f;
+            quickscopeShotUsed = false;
+            sniperAtAimStart = game.Powerups.SniperRemaining > 0f && Time.time >= nextQuickscopeAt;
         }
         IsAiming = aiming;
-        Cursor.lockState = aiming ? CursorLockMode.Locked : CursorLockMode.None;
-        if (aiming) Cursor.visible = false;
+        Cursor.lockState = IsSniperAiming ? CursorLockMode.Locked : CursorLockMode.None;
+        if (IsSniperAiming) Cursor.visible = false;
         return true;
     }
 
     public void AdvanceView(float deltaTime, Vector2 pointerDelta)
     {
         if (view == null || deltaTime <= 0f) return;
-        if (IsAiming)
+        if (IsAiming) aimAge += deltaTime;
+        if (IsSniperAiming)
         {
             float unitsPerPixel = view.orthographicSize * 2f / Mathf.Max(1f, view.pixelHeight);
             aimPosition += new Vector3(pointerDelta.x, pointerDelta.y, 0f) * unitsPerPixel * .75f;
-            aimPosition = ClampToMeadow(aimPosition, homeSize * zoomScale);
+            aimPosition = ClampToMeadow(aimPosition, homeSize * CurrentZoomScale);
         }
         float blend = 1f - Mathf.Exp(-deltaTime * 16f);
-        float desiredSize = IsAiming ? homeSize * zoomScale : homeSize;
+        float desiredSize = IsAiming ? homeSize * CurrentZoomScale : homeSize;
         view.orthographicSize = Mathf.Lerp(view.orthographicSize, desiredSize, blend);
         if (Mathf.Abs(view.orthographicSize - desiredSize) < .001f) view.orthographicSize = desiredSize;
         Vector3 desiredPosition = IsAiming ? ClampToMeadow(aimPosition, view.orthographicSize) : homePosition;
@@ -98,6 +115,20 @@ public class WingShotScope : MonoBehaviour
         }
         Cursor.lockState = CursorLockMode.None;
     }
+
+    // Exactly one accepted shot can claim the short window; misses and crate hits use it too.
+    public bool ConsumeQuickscopeShot()
+    {
+        bool eligible = IsSniperAiming && sniperAtAimStart && !quickscopeShotUsed && aimAge <= QuickscopeWindow;
+        if (IsAiming && !quickscopeShotUsed)
+        {
+            quickscopeShotUsed = true;
+            if (eligible) nextQuickscopeAt = Time.time + .75f;
+        }
+        return eligible;
+    }
+
+    public void ResetRound() { ResetView(); nextQuickscopeAt = 0f; }
 
     void OnDisable() { ResetView(); }
     void OnDestroy() { ResetView(); }

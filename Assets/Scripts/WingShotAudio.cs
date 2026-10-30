@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-public enum WingShotSound { Shoot, Hit, Miss, Unlock, GameOver, Sniper, CrateHit, CrateOpen }
+public enum WingShotSound { Shoot, Hit, Miss, Unlock, GameOver, Sniper, CrateHit, CrateOpen, Hurt, BossDrop, BossDefeat }
 
 // Uses one audio source for effects and another for the looping music.
 [RequireComponent(typeof(AudioSource))]
@@ -20,7 +20,7 @@ public class WingShotAudio : MonoBehaviour
     [SerializeField, HideInInspector] AudioSource musicSource;
     [SerializeField, HideInInspector] bool muted;
     [SerializeField, HideInInspector] WingShotState musicState = WingShotState.MainMenu;
-    [SerializeField, HideInInspector] AudioClip[] generated = new AudioClip[8];
+    [SerializeField, HideInInspector] AudioClip[] generated = new AudioClip[11];
 
     // Other scripts and the Editor checks can inspect the music without replacing its source.
     public AudioSource MusicSource => musicSource;
@@ -34,7 +34,7 @@ public class WingShotAudio : MonoBehaviour
     // Connect the effects source, load the supplied music, and start just one repeating loop.
     void EnsureSources()
     {
-        if (generated == null || generated.Length != 8) System.Array.Resize(ref generated, 8);
+        if (generated == null || generated.Length != 11) System.Array.Resize(ref generated, 11);
         if (source == null) source = GetComponent<AudioSource>();
         source.playOnAwake = false;
         source.loop = false;
@@ -137,7 +137,8 @@ public class WingShotAudio : MonoBehaviour
     static AudioClip Synthesize(WingShotSound sound)
     {
         const int sampleRate = 22050;
-        float duration = sound == WingShotSound.Sniper ? .38f : sound == WingShotSound.CrateOpen ? .32f :
+        float duration = sound == WingShotSound.Hurt || sound == WingShotSound.BossDrop ? .22f :
+            sound == WingShotSound.BossDefeat ? .55f : sound == WingShotSound.Sniper ? .38f : sound == WingShotSound.CrateOpen ? .32f :
             sound == WingShotSound.Unlock ? .4f : sound == WingShotSound.GameOver ? .6f : .1f;
         var samples = new float[Mathf.CeilToInt(duration * sampleRate)];
         double phase = 0;
@@ -153,6 +154,9 @@ public class WingShotAudio : MonoBehaviour
                 case WingShotSound.Sniper: f = Mathf.Lerp(155f, 42f, t / duration); break;
                 case WingShotSound.CrateHit: f = Mathf.Lerp(310f, 100f, t / duration); break;
                 case WingShotSound.CrateOpen: f = t < .1f ? 392f : t < .2f ? 587.33f : 783.99f; break;
+                case WingShotSound.Hurt: f = Mathf.Lerp(125f, 65f, t / duration); break;
+                case WingShotSound.BossDrop: f = Mathf.Lerp(420f, 95f, t / duration); break;
+                case WingShotSound.BossDefeat: f = t < .18f ? 523.25f : t < .36f ? 783.99f : 1046.5f; break;
                 case WingShotSound.Unlock:
                     f = t < .13f ? 523.25f : t < .26f ? 659.25f : 783.99f; break;
                 case WingShotSound.GameOver:

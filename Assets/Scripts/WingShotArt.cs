@@ -7,6 +7,76 @@ public static class WingShotArt
     static Sprite[] birds;
     static Sprite square;
     static Sprite crate;
+    static Sprite[] bosses;
+    static Sprite poop;
+    public static Sprite BossBird(int frame)
+    {
+        if (bosses == null || bosses[0] == null)
+        {
+            bosses = new Sprite[2];
+            for (int f = 0; f < 2; f++)
+            {
+                const int w = 160, h = 128;
+                var pixels = new Color[w * h];
+                for (int y = 0; y < h; y++)
+                for (int x = 0; x < w; x++)
+                {
+                    var p = new Vector2(x, y);
+                    Color c = Color.clear;
+                    if (Triangle(p, new Vector2(48, 55), new Vector2(3, 79), new Vector2(13, 31)) ||
+                        Ellipse(x, y, 77, 51, 43, 28) || Ellipse(x, y, 115, 73, 23, 23)) c = new Color(.55f, .32f, .73f);
+                    if (Ellipse(x, y, 89, 43, 24, 16)) c = new Color(.78f, .61f, .87f);
+                    bool wing = f == 0 ? Triangle(p, new Vector2(53, 48), new Vector2(33, 118), new Vector2(97, 57)) :
+                        Triangle(p, new Vector2(56, 57), new Vector2(49, 3), new Vector2(98, 43));
+                    if (wing) c = new Color(.34f, .18f, .50f);
+                    if (Triangle(p, new Vector2(133, 78), new Vector2(158, 65), new Vector2(133, 60))) c = new Color(1f, .63f, .20f);
+                    if (Ellipse(x, y, 121, 78, 7, 6)) c = Color.white;
+                    if (Ellipse(x, y, 123, 77, 3, 4)) c = new Color(.13f, .09f, .19f);
+                    if (x > 112 && x < 130 && Mathf.Abs(y - (91 - (x - 112) * .35f)) < 2f) c = new Color(.16f, .09f, .23f);
+                    bool crown = x >= 98 && x <= 133 && y >= 95 && y <= 105;
+                    crown |= Triangle(p, new Vector2(98, 100), new Vector2(98, 122), new Vector2(111, 102)) ||
+                        Triangle(p, new Vector2(107, 102), new Vector2(117, 126), new Vector2(125, 102)) ||
+                        Triangle(p, new Vector2(123, 102), new Vector2(136, 121), new Vector2(133, 100));
+                    if (crown) c = new Color(1f, .80f, .22f);
+                    if (Ellipse(x, y, 117, 103, 3, 3)) c = new Color(.92f, .21f, .28f);
+                    pixels[y * w + x] = c;
+                }
+                bosses[f] = MakeSprite("Royal Pooper " + f, w, h, pixels, 100f);
+            }
+        }
+        return bosses[Mathf.Abs(frame) % 2];
+    }
+    public static Sprite Poop
+    {
+        get
+        {
+            if (poop != null) return poop;
+            const int w = 64, h = 56;
+            var pixels = new Color[w * h];
+            for (int y = 0; y < h; y++)
+            for (int x = 0; x < w; x++)
+            {
+                Color c = Color.clear;
+                if (Ellipse(x, y, 32, 14, 26, 11) || Ellipse(x, y, 32, 26, 19, 11) ||
+                    Ellipse(x, y, 33, 37, 12, 9) || Triangle(new Vector2(x, y), new Vector2(23, 38), new Vector2(38, 53), new Vector2(43, 35)))
+                    c = new Color(.39f + y * .003f, .23f + y * .002f, .12f + y * .001f);
+                if (Ellipse(x, y, 21, 17, 7, 3) || Ellipse(x, y, 26, 29, 5, 2)) c = new Color(.81f, .68f, .44f);
+                pixels[y * w + x] = c;
+            }
+            poop = MakeSprite("Cartoon boss dropping", w, h, pixels, 64f);
+            return poop;
+        }
+    }
+    static Sprite MakeSprite(string name, int w, int h, Color[] pixels, float pixelsPerUnit)
+    {
+        var texture = new Texture2D(w, h, TextureFormat.RGBA32, false);
+        texture.name = name;
+        texture.filterMode = FilterMode.Bilinear;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.SetPixels(pixels);
+        texture.Apply(false, true);
+        return Sprite.Create(texture, new Rect(0, 0, w, h), new Vector2(.5f, .5f), pixelsPerUnit);
+    }
     public static Sprite Crate
     {
         get

@@ -19,7 +19,8 @@ public class WingShotPowerups : MonoBehaviour
 
     public int ShotDamage => SniperRemaining > 0f ? 3 : 1;
     public int PointMultiplier => DoublePointsRemaining > 0f ? 2 : 1;
-    public float BirdSpeedMultiplier => SlowRemaining > 0f ? .5f : 1f;
+    public float BirdSpeedMultiplier => (SlowRemaining > 0f ? .5f : 1f) *
+        (game != null && game.Scope != null ? game.Scope.AimBirdSpeedMultiplier : 1f);
     public WingShotSound ShotSound => SniperRemaining > 0f ? WingShotSound.Sniper : WingShotSound.Shoot;
     public WingShotCrate CurrentCrate => activeCrate != null && activeCrate.gameObject.activeSelf ? activeCrate : null;
 
@@ -46,7 +47,7 @@ public class WingShotPowerups : MonoBehaviour
 
     public void ResetRound()
     {
-        if (game != null && game.Scope != null) game.Scope.ResetView();
+        if (game != null && game.Scope != null) game.Scope.ResetRound();
         SniperRemaining = DoublePointsRemaining = SlowRemaining = 0f;
         dropCountdown = firstDropDelay;
         dropNumber = 0;

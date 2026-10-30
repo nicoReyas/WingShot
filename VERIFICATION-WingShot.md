@@ -1,6 +1,20 @@
 ﻿# Wing Shot verification
 
-Latest update: falling power-up crates, sniper countdown, and scope zoom, October 30, 2026.
+Latest update: quickscope rewards, regular focus aiming, and bird boss combat, October 30, 2026.
+Editor: Unity 6000.6.0f1.
+
+- Runtime and Editor C# compilation passed with zero errors and zero warnings.
+- **173 automated Unity Play Mode checks passed**, with zero gameplay errors. Report: Verification/WingShotBossAndQuickscopes.json.
+- Windows player rebuilt successfully with zero errors and 488 shader warnings from existing Unity packages. Report: Verification/WingShotBossAndQuickscopesBuild.txt. Both deliverable ZIPs were refreshed.
+- Quickscope checks exercise real collider kills within and outside the 0.5-second window, one bonus per attempt, rapid-toggle rearm protection, misses consuming attempts, no crate bonuses, immediate score/currency payout, and 4x rewards when stacked with double points.
+- Regular focus checks cover the 0.9 camera-size ratio, free pointer, no sniper aperture, ordinary damage, actual bird movement at 97% speed, a normal round clock, and restoration on release.
+- Boss checks cover automatic spawning, a single boss at a time, 24 starting HP, ordinary and sniper damage, no early payouts, a 300-point defeat reward, 30-HP rematches, and attack damage held at 12. Dropping interception, natural falling impacts, duplicate-impact rejection, invulnerability, pause behavior, zero-health defeat, best-score recording, restart, and cleanup are also exercised.
+- Boss combat and both health bars were captured and visually inspected at 16:9 and 4:3. Quickscope reward and health-defeat previews are included in Previews/. Capture rendering keeps world targets behind the HUD, matching the live overlay canvas.
+- The player starts with 100 HP. The boss warns for 0.75 seconds, attacks every four seconds, and gives 1.9 seconds to intercept a dropping. Player damage has a 0.9-second protection window. These are initial balance values; automated checks do not replace a human game-feel session.
+- Two known Unity Search indexing issues are recorded separately in the report. Authored scenes, prefabs, project settings, package versions, AudioManager.asset, existing cosmetic IDs, and the soundtrack were preserved.
+- Backup before this update: Backups/Before-Boss-And-Quickscopes-20261030-010600.zip.
+
+Previous update: falling power-up crates, sniper countdown, and scope zoom, October 30, 2026.
 Editor: Unity 6000.6.0f1.
 
 - Runtime and Editor C# compilation passed with zero errors and zero warnings.

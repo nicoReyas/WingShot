@@ -29,6 +29,11 @@ public class WingShotUI : MonoBehaviour
     TMP_Text sniperSeconds;
     RectTransform sniperFill;
     WingShotScopeOverlay scopeOverlay;
+    TMP_Text playerHealthLabel, bossHealthLabel, bossWarning, resultHeading, resultReason;
+    RectTransform playerHealthFill, bossHealthFill;
+    Image playerHealthColor, damageOverlay;
+    GameObject bossHealthPanel;
+    float hurtUntil;
     WingShotCrosshair crosshair;
     float feedbackUntil;
     // Store each shop button with the category and style it controls.
@@ -100,6 +105,8 @@ public class WingShotUI : MonoBehaviour
         scopeOverlay = scopeObject.AddComponent<WingShotScopeOverlay>();
         scopeOverlay.raycastTarget = false;
         scopeObject.SetActive(false);
+        damageOverlay = Panel("Poop hit flash", hud.transform, Color.clear, false);
+        Stretch(damageOverlay.rectTransform);
         var bar = Panel("Scoreboard", hud.transform, new Color(Cream.r, Cream.g, Cream.b, .94f), false);
         var r = bar.GetComponent<RectTransform>();
         r.anchorMin = new Vector2(0, 1); r.anchorMax = Vector2.one;
@@ -119,9 +126,27 @@ public class WingShotUI : MonoBehaviour
         level = Label(hud.transform, "", 15, Navy, new Vector2(0, -62), new Vector2(540, 24), new Vector2(.5f, 1));
         var pause = MakeButton(hud.transform, "PAUSE", new Vector2(-65, -40), new Vector2(108, 44), game.PauseGame);
         Place(pause.GetComponent<RectTransform>(), new Vector2(108, 44), new Vector2(-65, -40), Vector2.one);
-        Label(hud.transform, "CLICK TO SHOOT  /  ESC TO PAUSE\nMISS: -10 POINTS & -1 SECOND  /  HEALTH PIPS = HITS LEFT", 15, Cream,
+        Label(hud.transform, "CLICK TO SHOOT / RIGHT CLICK TO AIM / ESC TO PAUSE\nMISS: -10 PTS & -1s / SHOOT THE BOSS'S POOP BEFORE IT LANDS", 15, Cream,
             new Vector2(0, 30), new Vector2(780, 46), new Vector2(.5f, 0));
-        feedback = Label(hud.transform, "", 26, Navy, new Vector2(0, -117), new Vector2(650, 45), new Vector2(.5f, 1));
+        feedback = Label(hud.transform, "", 24, Navy, new Vector2(0, -183), new Vector2(690, 38), new Vector2(.5f, 1));
+        var health = Panel("Player Health", hud.transform, new Color(.08f, .17f, .24f, .94f), false);
+        Place(health.rectTransform, new Vector2(255, 64), new Vector2(145, -125), new Vector2(0, 1));
+        playerHealthLabel = Label(health.transform, "", 19, Cream, new Vector2(0, 13), new Vector2(239, 28));
+        var healthTrack = Panel("Player Health Track", health.transform, new Color(.3f, .35f, .4f), false);
+        Place(healthTrack.rectTransform, new Vector2(223, 11), new Vector2(0, -13));
+        playerHealthColor = Panel("Player Health Fill", healthTrack.transform, new Color(.35f, .91f, .57f), false);
+        playerHealthFill = playerHealthColor.rectTransform;
+        Stretch(playerHealthFill);
+        var bossPanel = Panel("Boss Health", hud.transform, new Color(.21f, .11f, .29f, .95f), false);
+        bossHealthPanel = bossPanel.gameObject;
+        Place(bossPanel.rectTransform, new Vector2(480, 48), new Vector2(0, -117), new Vector2(.5f, 1));
+        bossHealthLabel = Label(bossPanel.transform, "", 17, Cream, new Vector2(0, 9), new Vector2(460, 25));
+        var bossTrack = Panel("Boss Health Track", bossPanel.transform, new Color(.36f, .23f, .39f), false);
+        Place(bossTrack.rectTransform, new Vector2(448, 8), new Vector2(0, -12));
+        var bossFill = Panel("Boss Health Fill", bossTrack.transform, new Color(.95f, .37f, .51f), false);
+        bossHealthFill = bossFill.rectTransform;
+        Stretch(bossHealthFill);
+        bossWarning = Label(hud.transform, "", 16, new Color(.65f, .12f, .18f), new Vector2(0, -153), new Vector2(520, 24), new Vector2(.5f, 1));
         var powerupBar = Panel("Active Powerups", hud.transform, new Color(.08f, .17f, .24f, .88f), false);
         Place(powerupBar.rectTransform, new Vector2(940, 42), new Vector2(0, 87), new Vector2(.5f, 0));
         powerupStatus = Label(powerupBar.transform, "", 18, Cream, Vector2.zero, new Vector2(915, 36));
@@ -137,7 +162,7 @@ public class WingShotUI : MonoBehaviour
         sniperFill.anchorMin = new Vector2(0, 0);
         sniperFill.anchorMax = new Vector2(1, 1);
         sniperFill.offsetMin = sniperFill.offsetMax = Vector2.zero;
-        Label(clock.transform, "HOLD RIGHT CLICK TO SCOPE", 13, Cream, new Vector2(0, -28), new Vector2(245, 24));
+        Label(clock.transform, "QUICKSCOPE WITHIN 0.5s = 2X", 12, Cream, new Vector2(0, -28), new Vector2(245, 24));
         sniperClock.SetActive(false);
     }
 
@@ -272,13 +297,14 @@ public class WingShotUI : MonoBehaviour
         heading.text = "NICE SHOOTING!";
         Place(heading.rectTransform, new Vector2(720, 78), new Vector2(0, 212));
         Style(heading, 52, Yellow, TextAlignmentOptions.Center);
-        Label(card, "TIME'S UP - HERE'S YOUR FLIGHT REPORT", 16, Muted, new Vector2(0, 158), new Vector2(730, 30));
+        resultHeading = heading;
+        resultReason = Label(card, "", 16, Muted, new Vector2(0, 158), new Vector2(730, 30));
 
         if (game.finalScoreText == null)
             game.finalScoreText = Label(card, "", 50, Cream, Vector2.zero, new Vector2(720, 70));
         Place(game.finalScoreText.rectTransform, new Vector2(720, 72), new Vector2(0, 93));
         Style(game.finalScoreText, 50, Cream, TextAlignmentOptions.Center);
-        resultStats = Label(card, "", 28, Cream, new Vector2(0, 5), new Vector2(730, 88));
+        resultStats = Label(card, "", 23, Cream, new Vector2(0, 5), new Vector2(730, 88));
         resultProgress = Label(card, "", 22, Muted, new Vector2(0, -88), new Vector2(730, 70));
 
         var restart = card.GetComponentInChildren<Button>(true);
@@ -338,7 +364,29 @@ public class WingShotUI : MonoBehaviour
         mainProgress.text = "BEST  " + game.Progress.BestScore + "       /       POINTS  " + game.Progress.Points;
         customizationPoints.text = game.Progress.Points + " POINTS";
         game.finalScoreText.text = "SCORE  " + game.score;
-        resultStats.text = game.Accuracy.ToString("0") + "% ACCURACY\n" + game.Hits + " HITS    /    " + game.Misses + " MISSES";
+        resultStats.text = game.Accuracy.ToString("0") + "% ACCURACY\n" + game.Hits + " HITS / " + game.Misses + " MISSES\n" +
+            game.QuickscopeKills + " QUICKSCOPES / " + (game.Encounter == null ? 0 : game.Encounter.BossesDefeated) + " BOSSES";
+        if (resultHeading != null) resultHeading.text = game.PlayerDefeated ? "BIRDS GOT YOU!" : "NICE SHOOTING!";
+        if (resultReason != null) resultReason.text = game.PlayerDefeated ? "OUT OF HEALTH - YOUR EARNED POINTS ARE SAVED" : "TIME'S UP - HERE'S YOUR FLIGHT REPORT";
+        if (playerHealthLabel != null)
+        {
+            playerHealthLabel.text = "HEALTH  " + game.PlayerHealth + " / " + GameManager.MaxPlayerHealth;
+            float fraction = (float)game.PlayerHealth / GameManager.MaxPlayerHealth;
+            playerHealthFill.anchorMax = new Vector2(fraction, 1f);
+            playerHealthColor.color = Color.Lerp(new Color(1f, .28f, .25f), new Color(.35f, .91f, .57f), fraction);
+        }
+        if (bossHealthPanel != null && game.Encounter != null)
+        {
+            var boss = game.Encounter.CurrentBoss;
+            bossHealthPanel.SetActive(boss != null);
+            bossWarning.gameObject.SetActive(boss != null);
+            if (boss != null)
+            {
+                bossHealthLabel.text = "THE ROYAL POOPER  " + boss.RemainingHealth + " / " + boss.MaxHealth + " HP";
+                bossHealthFill.anchorMax = new Vector2((float)boss.RemainingHealth / boss.MaxHealth, 1f);
+                bossWarning.text = boss.IsWindingUp ? "INCOMING POOP!  SHOOT IT BEFORE IT LANDS" : "SHOOT DROPPINGS TO PROTECT YOUR HEALTH";
+            }
+        }
         resultProgress.text = "+" + game.EarnedPoints + " POINTS EARNED   /   BEST " + game.Progress.BestScore +
             "\n" + game.Progress.Points + " POINTS TO CUSTOMIZE";
         string sound = game.Progress.Muted ? "SOUND: OFF" : "SOUND: ON";
@@ -352,7 +400,7 @@ public class WingShotUI : MonoBehaviour
                 active += (active.Length > 0 ? "   /   " : "") + "2X POINTS  " + Mathf.CeilToInt(effects.DoublePointsRemaining) + "s";
             if (effects.SlowRemaining > 0f)
                 active += (active.Length > 0 ? "   /   " : "") + "SLOW BIRDS  " + Mathf.CeilToInt(effects.SlowRemaining) + "s";
-            powerupStatus.text = active.Length == 0 ? "SUPPLY CRATES: 8 HP  /  SHOOT TO OPEN & CLAIM THE REWARD" : active;
+            powerupStatus.text = active.Length == 0 ? "RIGHT CLICK: FOCUS AIM  /  SUPPLY CRATES: 8 HP" : active;
         }
         if (sniperClock != null && game.Powerups != null)
         {
@@ -382,14 +430,42 @@ public class WingShotUI : MonoBehaviour
     }
 
     // Show a short hit or miss message and flash the crosshair.
-    public void ShotFeedback(bool hit, int points = 10, int remainingHealth = 0)
+    public void ShotFeedback(bool hit, int points = 10, int remainingHealth = 0, bool quickscope = false)
     {
         feedback.text = !hit ? "MISS  -10 POINTS / -1 SECOND" : remainingHealth > 0
             ? "HIT!  " + remainingHealth + (remainingHealth == 1 ? " HIT LEFT" : " HITS LEFT")
-            : "BIRD DOWN  +" + points;
+            : quickscope ? "QUICKSCOPE!  +" + points : "BIRD DOWN  +" + points;
         feedback.color = hit ? new Color(.12f, .36f, .23f) : new Color(.68f, .17f, .18f);
         feedbackUntil = Time.unscaledTime + .5f;
         crosshair.Pulse(hit);
+        Refresh();
+    }
+
+    public void BossAnnouncement()
+    {
+        feedback.text = "BOSS INCOMING!  SHOOT THE POOP TO BLOCK IT";
+        feedback.color = Navy;
+        feedbackUntil = Time.unscaledTime + 2f;
+        Refresh();
+    }
+    public void BossShotFeedback(int health, int maximum, int points, bool quickscope)
+    {
+        feedback.text = health > 0 ? "BOSS HIT  " + health + " / " + maximum + " HP" :
+            (quickscope ? "QUICKSCOPE BOSS DOWN!  +" : "BOSS DOWN!  +") + points;
+        feedbackUntil = Time.unscaledTime + 1f;
+        Refresh();
+    }
+    public void BlockFeedback()
+    {
+        feedback.text = "POOP BLOCKED!  NO DAMAGE";
+        feedbackUntil = Time.unscaledTime + .7f;
+    }
+    public void DamageFeedback(int damage)
+    {
+        feedback.text = "SPLAT!  -" + damage + " HEALTH";
+        feedback.color = new Color(.72f, .14f, .16f);
+        feedbackUntil = Time.unscaledTime + .8f;
+        hurtUntil = Time.unscaledTime + .45f;
         Refresh();
     }
 
@@ -421,14 +497,16 @@ public class WingShotUI : MonoBehaviour
     void LateUpdate()
     {
         if (!built || crosshair == null) return;
-        Vector2 pointer = game.Scope != null && game.Scope.IsAiming
+        Vector2 pointer = game.Scope != null && game.Scope.IsSniperAiming
             ? game.Scope.AimScreenPosition : WingShotInput.PointerPosition;
         if (scopeOverlay != null)
         {
-            float zoom = game.Scope == null ? 0f : game.Scope.ZoomAmount;
+            float zoom = game.Scope == null ? 0f : game.Scope.LensAmount;
             scopeOverlay.gameObject.SetActive(game.IsPlaying && zoom > .001f);
             scopeOverlay.SetZoom(zoom);
         }
+        if (damageOverlay != null)
+            damageOverlay.color = new Color(.42f, .19f, .06f, Mathf.Max(0f, hurtUntil - Time.unscaledTime) * .45f);
         bool visible = game.IsPlaying && Application.isFocused && WingShotInput.HasPointer &&
             pointer.x >= 0 && pointer.y >= 0 && pointer.x < Screen.width && pointer.y < Screen.height;
         crosshair.gameObject.SetActive(visible);

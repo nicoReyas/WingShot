@@ -18,7 +18,7 @@ public class ShootingSystem : MonoBehaviour
     {
         if (game == null || !game.IsPlaying || !Application.isFocused ||
             Time.frameCount <= game.StateChangedFrame) return;
-        if (WingShotInput.ShootPressed) TryShootAt(game.Scope != null && game.Scope.IsAiming
+        if (WingShotInput.ShootPressed) TryShootAt(game.Scope != null && game.Scope.IsSniperAiming
             ? game.Scope.AimScreenPosition : WingShotInput.PointerPosition);
     }
 
@@ -34,6 +34,7 @@ public class ShootingSystem : MonoBehaviour
             return false;
 
         LastShotSound = game.Powerups.ShotSound;
+        bool quickscope = game.Scope != null && game.Scope.ConsumeQuickscopeShot();
         game.Sounds.Play(LastShotSound);
         // Update collider positions before checking this frame's shot.
         Physics2D.SyncTransforms();
@@ -41,15 +42,39 @@ public class ShootingSystem : MonoBehaviour
         // When birds overlap, prefer the one drawn in front.
         BirdTarget target = null;
         WingShotCrate crate = null;
+        WingShotBoss boss = null;
+        WingShotDropping poop = null;
         int topOrder = int.MinValue;
         foreach (var hit in hits)
         {
             var candidate = hit.collider.GetComponentInParent<BirdTarget>();
             var candidateCrate = hit.collider.GetComponentInParent<WingShotCrate>();
-            if ((candidate == null || candidate.IsHit) && (candidateCrate == null || candidateCrate.IsOpened)) continue;
+            var candidateBoss = hit.collider.GetComponentInParent<WingShotBoss>();
+            var candidatePoop = hit.collider.GetComponentInParent<WingShotDropping>();
+            if ((candidate == null || candidate.IsHit) && (candidateCrate == null || candidateCrate.IsOpened) &&
+                (candidateBoss == null || candidateBoss.IsDefeated) && (candidatePoop == null || candidatePoop.IsResolved)) continue;
             var sprite = hit.collider.GetComponent<SpriteRenderer>();
             int order = sprite == null ? 0 : sprite.sortingOrder;
-            if (order > topOrder) { target = candidate; crate = candidateCrate; topOrder = order; }
+            if (order > topOrder)
+            {
+                target = candidate; crate = candidateCrate; boss = candidateBoss; poop = candidatePoop; topOrder = order;
+            }
+        }
+        if (poop != null && poop.TryShoot())
+        {
+            game.RegisterShot(true, 0);
+            game.UI.BlockFeedback();
+            game.Sounds.Play(WingShotSound.Hit);
+            return true;
+        }
+        if (boss != null && boss.TryHit(game.Powerups.ShotDamage))
+        {
+            int points = boss.IsDefeated ? WingShotBoss.Reward : 0;
+            game.RegisterShot(true, points, boss.RemainingHealth, quickscope && boss.IsDefeated);
+            game.UI.BossShotFeedback(boss.RemainingHealth, boss.MaxHealth,
+                points * game.Powerups.PointMultiplier * (quickscope ? 2 : 1), quickscope && boss.IsDefeated);
+            game.Sounds.Play(WingShotSound.Hit);
+            return true;
         }
         if (crate != null && crate.TryHit(game.Powerups.ShotDamage))
         {
@@ -64,7 +89,7 @@ public class ShootingSystem : MonoBehaviour
         }
         bool didHit = target != null && target.TryHit(game.Powerups.ShotDamage);
         game.RegisterShot(didHit, didHit && target.IsHit ? target.points : 0,
-            didHit ? target.RemainingHealth : 0);
+            didHit ? target.RemainingHealth : 0, quickscope && didHit && target.IsHit);
         game.Sounds.Play(didHit ? WingShotSound.Hit : WingShotSound.Miss);
         return true;
     }

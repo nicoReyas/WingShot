@@ -48,6 +48,12 @@ public class GameManager : MonoBehaviour
     [field: SerializeField] public WingShotLandscape Landscape { get; private set; }
     [field: SerializeField] public WingShotPowerups Powerups { get; private set; }
     [field: SerializeField] public WingShotScope Scope { get; private set; }
+    [field: SerializeField] public WingShotBossEncounter Encounter { get; private set; }
+    public const int MaxPlayerHealth = 100;
+    [field: SerializeField] public int PlayerHealth { get; private set; } = MaxPlayerHealth;
+    [field: SerializeField] public bool PlayerDefeated { get; private set; }
+    [field: SerializeField] public int QuickscopeKills { get; private set; }
+    [SerializeField] float nextPlayerDamageAt;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     // Clear the shared GameManager reference before a new Play Mode session.
@@ -67,6 +73,8 @@ public class GameManager : MonoBehaviour
         if (Powerups == null) Powerups = gameObject.AddComponent<WingShotPowerups>();
         Scope = GetComponent<WingShotScope>();
         if (Scope == null) Scope = gameObject.AddComponent<WingShotScope>();
+        Encounter = GetComponent<WingShotBossEncounter>();
+        if (Encounter == null) Encounter = gameObject.AddComponent<WingShotBossEncounter>();
     }
 
     // Recover needed references if Unity reloads scripts during Play Mode.
@@ -81,6 +89,7 @@ public class GameManager : MonoBehaviour
         if (Landscape == null) Landscape = GetComponent<WingShotLandscape>();
         if (Powerups == null) Powerups = GetComponent<WingShotPowerups>();
         if (Scope == null) Scope = GetComponent<WingShotScope>();
+        if (Encounter == null) Encounter = GetComponent<WingShotBossEncounter>();
     }
 
     // Build the menus and scenery, apply saved styles, and show the main menu.
@@ -117,10 +126,15 @@ public class GameManager : MonoBehaviour
     public void StartGame()
     {
         Powerups.ResetRound();
+        Encounter.ResetRound();
         ClearBirds();
         score = 0;
         Hits = Misses = 0;
         EarnedPoints = 0;
+        PlayerHealth = MaxPlayerHealth;
+        PlayerDefeated = false;
+        QuickscopeKills = 0;
+        nextPlayerDamageAt = 0f;
         timeRemaining = Mathf.Max(1f, roundDuration);
         ChangeState(WingShotState.Playing);
         foreach (var spawner in WingShotObjects.All<BirdSpawner>())
@@ -147,6 +161,7 @@ public class GameManager : MonoBehaviour
     {
         if (IsPlaying || State == WingShotState.Paused) Progress.RecordScore(score);
         Powerups.ResetRound();
+        Encounter.ResetRound();
         ClearBirds();
         ChangeState(WingShotState.MainMenu);
     }
@@ -160,22 +175,31 @@ public class GameManager : MonoBehaviour
     // Finish the round, show results, play the ending sound, and save progress.
     public void EndGame()
     {
+        FinishRound(false);
+    }
+
+    void FinishRound(bool defeated)
+    {
         if (!IsPlaying) return;
+        PlayerDefeated = defeated;
         timeRemaining = 0f;
         Powerups.ResetRound();
+        Encounter.ClearTargets();
+        Progress.RecordScore(score);
         ChangeState(WingShotState.GameOver);
         Sounds.Play(WingShotSound.GameOver);
-        Progress.RecordScore(score);
     }
 
     // Count the shot, award points for a hit, and update the shot feedback.
-    public void RegisterShot(bool hit, int points = 10, int remainingHealth = 0)
+    public void RegisterShot(bool hit, int points = 10, int remainingHealth = 0, bool quickscope = false)
     {
         if (!IsPlaying) return;
         if (hit)
         {
             Hits++;
-            points = (int)System.Math.Min(int.MaxValue, (long)Mathf.Max(0, points) * Powerups.PointMultiplier);
+            quickscope = quickscope && points > 0 && remainingHealth == 0;
+            if (quickscope) QuickscopeKills++;
+            points = (int)System.Math.Min(int.MaxValue, (long)Mathf.Max(0, points) * Powerups.PointMultiplier * (quickscope ? 2 : 1));
             AddScore(points);
         }
         else
@@ -184,8 +208,19 @@ public class GameManager : MonoBehaviour
             score = (int)System.Math.Max(int.MinValue, (long)score - MissPointPenalty);
             timeRemaining = Mathf.Max(0f, timeRemaining - MissTimePenalty);
         }
-        if (UI != null) UI.ShotFeedback(hit, points, remainingHealth);
+        if (UI != null) UI.ShotFeedback(hit, points, remainingHealth, quickscope);
         if (timeRemaining <= 0f) EndGame();
+    }
+
+    public bool DamagePlayer(int damage)
+    {
+        if (!IsPlaying || damage <= 0 || Time.time < nextPlayerDamageAt) return false;
+        PlayerHealth = Mathf.Max(0, PlayerHealth - damage);
+        nextPlayerDamageAt = Time.time + .9f;
+        Sounds.Play(WingShotSound.Hurt);
+        if (UI != null) UI.DamageFeedback(damage);
+        if (PlayerHealth == 0) FinishRound(true);
+        return true;
     }
 
     // Increase the round score and immediately save the earned cosmetic points.

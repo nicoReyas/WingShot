@@ -37,6 +37,10 @@ public static class WingShotProjectTools
     static float pausedCrateLife, pausedSniper, pausedDouble, pausedSlow;
     static Vector3 pausedCratePosition, slowProbePosition;
     static BirdTarget slowProbe;
+    static WingShotBoss testBoss;
+    static WingShotDropping testDropping;
+    static Vector3 bossPausePosition, droppingPausePosition;
+    static int healthBeforeFall;
     static Report report;
 
     [Serializable] public sealed class Report
@@ -213,9 +217,9 @@ public static class WingShotProjectTools
     static void Tick()
     {
         if (!SessionState.GetBool(Running, false) || SessionState.GetBool(Ending, false)) return;
-        if (EditorApplication.timeSinceStartup - startedAt > 120)
+        if (EditorApplication.timeSinceStartup - startedAt > 180)
         {
-            Fail(new TimeoutException("Play Mode checks exceeded 120 seconds. Playing=" + EditorApplication.isPlaying + ", Manager=" + (GameManager.Instance != null) + ", UI=" + (GameManager.Instance != null && GameManager.Instance.UI != null)));
+            Fail(new TimeoutException("Play Mode checks exceeded 180 seconds. Playing=" + EditorApplication.isPlaying + ", Manager=" + (GameManager.Instance != null) + ", UI=" + (GameManager.Instance != null && GameManager.Instance.UI != null)));
             return;
         }
         if (!EditorApplication.isPlaying || EditorApplication.isCompiling ||
@@ -484,6 +488,7 @@ public static class WingShotProjectTools
                     Require(game.Powerups.CurrentCrate == null && game.Powerups.ShotDamage == 1,
                         "Main menu has no crates or active weapon boosts");
                     game.StartGame();
+                    game.Encounter.enabled = false;
                     Object.FindAnyObjectByType<BirdSpawner>().enabled = false;
                     foreach (var bird in ActiveBirds()) { bird.gameObject.SetActive(false); Object.Destroy(bird.gameObject); }
                     Next(3.75);
@@ -585,6 +590,88 @@ public static class WingShotProjectTools
                     game.ReturnToMainMenu();
                     Require(game.Powerups.BirdSpeedMultiplier == 1f && game.Powerups.CurrentCrate == null &&
                         WingShotObjects.All<WingShotCrate>().Length == 0, "Returning to menu clears crates and timed effects");
+                    stage = 22;
+                    Next(.1);
+                    break;
+                case 23:
+                    Require(game.Encounter.firstBossDelay == 18f, "The first boss is scheduled eighteen seconds into a normal round");
+                    game.Encounter.firstBossDelay = .6f;
+                    game.Encounter.enabled = true;
+                    game.StartGame();
+                    game.Encounter.firstBossDelay = 18f;
+                    game.Powerups.enabled = false;
+                    game.Scope.enabled = false;
+                    foreach (var bird in ActiveBirds()) { bird.gameObject.SetActive(false); Object.Destroy(bird.gameObject); }
+                    Require(game.PlayerHealth == 100 && !game.PlayerDefeated && game.QuickscopeKills == 0,
+                        "A fresh round starts at full health with no quickscope kills");
+                    game.Scope.SetAiming(true, game.Scope.AimScreenPosition);
+                    for (int i = 0; i < 10; i++) game.Scope.AdvanceView(.1f, Vector2.zero);
+                    slowProbe = CombatBird(game, 1, 10);
+                    slowProbe.transform.position = new Vector3(-4f, 0f, 0f);
+                    slowProbe.GetComponent<BirdMovement>().Configure(4f, 1f, BirdFlightPattern.Straight, -3f, 3f, -12f, 12f);
+                    slowProbe.GetComponent<BirdMovement>().enabled = true;
+                    slowProbePosition = slowProbe.transform.position;
+                    runningTime = game.timeRemaining;
+                    Next(.85);
+                    break;
+                case 24:
+                    testBoss = game.Encounter.CurrentBoss;
+                    Require(Mathf.Abs((slowProbe.transform.position.x - slowProbePosition.x) -
+                        (runningTime - game.timeRemaining) * 4f * .97f) < .15f,
+                        "Regular right-click focus slows actual bird movement by only three percent with a normal round clock");
+                    slowProbe.gameObject.SetActive(false);
+                    Object.Destroy(slowProbe.gameObject);
+                    Require(testBoss != null && testBoss.MaxHealth == 24 && testBoss.RemainingHealth == 24,
+                        "The encounter automatically spawns a twenty-four-health boss after its configured delay");
+                    Require(game.Encounter.SpawnBoss() == null, "The encounter prevents duplicate bosses");
+                    testBoss.enabled = false;
+                    testBoss.transform.position = new Vector3(4f, 2f, 0f);
+                    CheckQuickscopesAndFocus(game);
+                    CheckBossDefense(game);
+                    game.PauseGame();
+                    bossPausePosition = testBoss.transform.position;
+                    droppingPausePosition = testDropping.transform.position;
+                    healthBeforeFall = game.PlayerHealth;
+                    Next(.3);
+                    break;
+                case 25:
+                    Require(testBoss.transform.position == bossPausePosition && testDropping.transform.position == droppingPausePosition &&
+                        game.PlayerHealth == healthBeforeFall, "Pause freezes the boss, falling poop and player health");
+                    Require(!testBoss.TryHit(3) && !testDropping.TryShoot() && !testDropping.Impact() && !game.DamagePlayer(12),
+                        "Paused combat rejects boss damage, defensive shots, impacts and player damage");
+                    game.ResumeGame();
+                    testBoss.enabled = true;
+                    Next(2.15);
+                    break;
+                case 26:
+                    Require(testDropping == null && game.PlayerHealth == healthBeforeFall - 12,
+                        "An unblocked dropping naturally falls and removes exactly twelve player health");
+                    Require(game.IsPlaying && game.PlayerHealth > 0, "A single boss attack leaves the player alive with most health intact");
+                    Next(1.25);
+                    break;
+                case 27:
+                    var attacks = WingShotObjects.All<WingShotDropping>();
+                    Require(attacks.Length == 1, "The boss attack clock automatically releases a visible falling dropping");
+                    testDropping = attacks[0];
+                    testBoss.enabled = false;
+                    CheckBossDamageAndDefeat(game);
+                    Require(game.DamagePlayer(10000) && game.PlayerHealth == 0 && game.PlayerDefeated && game.gameOver &&
+                        game.State == WingShotState.GameOver && Time.timeScale == 0f,
+                        "Lethal damage clamps health at zero and ends the round with a health-defeat result");
+                    Require(game.Progress.BestScore >= game.score,
+                        "A health defeat records the settled best score before displaying results");
+                    Require(!game.DamagePlayer(12) && WingShotObjects.All<WingShotBoss>().Length == 0 &&
+                        WingShotObjects.All<WingShotDropping>().Length == 0,
+                        "Game over rejects further damage and clears the boss and its projectiles");
+                    if (SessionState.GetBool("WingShot.Checks.Capture", false)) CaptureFrame("Logs/WingShot-Health-Defeat.png");
+                    game.StartGame();
+                    Require(game.PlayerHealth == 100 && !game.PlayerDefeated && game.QuickscopeKills == 0 &&
+                        game.Encounter.BossesDefeated == 0 && game.Encounter.CurrentBoss == null,
+                        "Restart restores health and resets boss and quickscope round progress");
+                    game.ReturnToMainMenu();
+                    game.Powerups.enabled = game.Scope.enabled = game.Encounter.enabled = true;
+                    Require(!game.DamagePlayer(12) && game.Encounter.SpawnBoss() == null,
+                        "Menus cannot spawn a boss or damage the player");
                     if (SessionState.GetBool("WingShot.Checks.Capture", false))
                     {
                         game.Progress.UnlockAndSelect(CosmeticCategory.Background, 0);
@@ -637,6 +724,7 @@ public static class WingShotProjectTools
         var scaler = canvas.GetComponent<CanvasScaler>();
         var originalMode = canvas.renderMode;
         var originalUICamera = canvas.worldCamera;
+        int originalSortingOrder = canvas.sortingOrder;
         var originalTarget = camera.targetTexture;
         var originalActive = RenderTexture.active;
         float originalAspect = camera.aspect, originalPlane = canvas.planeDistance;
@@ -668,6 +756,8 @@ public static class WingShotProjectTools
             camera.aspect = (float)width / height;
             if (scaler != null) scaler.enabled = false;
             canvas.renderMode = RenderMode.ScreenSpaceCamera;
+            // Match the live overlay canvas: world targets must remain behind the HUD.
+            canvas.sortingOrder = 100;
             canvas.worldCamera = camera;
             canvas.planeDistance = 1f;
             canvas.scaleFactor = Mathf.Sqrt(width / 1280f * (height / 720f));
@@ -688,6 +778,7 @@ public static class WingShotProjectTools
             camera.targetTexture = originalTarget;
             camera.aspect = originalAspect;
             canvas.renderMode = originalMode;
+            canvas.sortingOrder = originalSortingOrder;
             canvas.worldCamera = originalUICamera;
             canvas.planeDistance = originalPlane;
             canvas.scaleFactor = originalScale;
@@ -847,6 +938,146 @@ public static class WingShotProjectTools
         Require(scopeFound, "An active sniper replaces the cosmetic cursor with its scope reticle");
         CheckScopedView(game);
         effects.enabled = true;
+    }
+
+    static BirdTarget CombatBird(GameManager game, int health, int reward)
+    {
+        var bird = MakeTarget(Object.FindAnyObjectByType<BirdSpawner>());
+        bird.Configure(health, reward);
+        bird.gameObject.AddComponent<WingShotBirdVisual>();
+        bird.transform.localScale = Vector3.one * 1.4f;
+        bird.GetComponent<SpriteRenderer>().color = CosmeticCatalog.Birds[game.Progress.Selected(CosmeticCategory.Bird)].Color;
+        return bird;
+    }
+
+    static void CheckQuickscopesAndFocus(GameManager game)
+    {
+        var scope = game.Scope;
+        var shooting = game.GetComponent<ShootingSystem>();
+        game.Powerups.ResetRound();
+        Require(scope.SetAiming(true, scope.AimScreenPosition), "Right-click aiming works without owning an active sniper");
+        for (int i = 0; i < 20; i++) scope.AdvanceView(.05f, Vector2.zero);
+        Require(Mathf.Abs(Camera.main.orthographicSize - scope.NormalSize * .9f) < .01f &&
+            Mathf.Approximately(game.Powerups.BirdSpeedMultiplier, .97f) && scope.LensAmount == 0f &&
+            !scope.IsSniperAiming && Cursor.lockState == CursorLockMode.None,
+            "Regular focus has a small zoom, a tiny slowdown, a free pointer and no sniper aperture");
+        var ordinary = CombatBird(game, 3, 60);
+        if (SessionState.GetBool("WingShot.Checks.Capture", false))
+        {
+            game.UI.Refresh(); game.UI.SendMessage("LateUpdate");
+            CaptureFrame("Logs/WingShot-Regular-Focus.png");
+        }
+        Require(shooting.TryShootAt(Camera.main.WorldToScreenPoint(ordinary.transform.position)) && ordinary.RemainingHealth == 2 &&
+            game.QuickscopeKills == 0, "Ordinary focused shots keep one damage and cannot claim quickscope bonuses");
+        scope.ResetRound();
+        Require(game.Powerups.BirdSpeedMultiplier == 1f, "Releasing focus immediately restores ordinary bird speed");
+        game.Powerups.Activate(WingShotPowerup.Sniper);
+        scope.SetAiming(true, scope.AimScreenPosition);
+        scope.AdvanceView(.2f, Vector2.zero);
+        int score = game.score, wallet = game.Progress.Points;
+        Require(shooting.TryShootAt(Camera.main.WorldToScreenPoint(ordinary.transform.position)) && ordinary.IsHit &&
+            game.score == score + 120 && game.Progress.Points == wallet + 120 && game.QuickscopeKills == 1,
+            "A sniper kill within half a second of aiming awards double score and currency");
+        var next = CombatBird(game, 1, 10);
+        score = game.score;
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(next.transform.position));
+        Require(game.score == score + 10 && game.QuickscopeKills == 1,
+            "Only the first shot in a scope attempt can earn a quickscope bonus");
+        scope.SetAiming(false);
+        scope.SetAiming(true, scope.AimScreenPosition);
+        next = CombatBird(game, 1, 10);
+        score = game.score;
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(next.transform.position));
+        Require(game.score == score + 10 && game.QuickscopeKills == 1,
+            "Instant repeated scope toggles cannot bypass the quickscope rearm delay");
+        scope.ResetRound();
+        scope.SetAiming(true, scope.AimScreenPosition);
+        scope.AdvanceView(.6f, Vector2.zero);
+        next = CombatBird(game, 1, 10);
+        score = game.score;
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(next.transform.position));
+        Require(game.score == score + 10 && game.QuickscopeKills == 1,
+            "A kill after the quickscope window awards only its normal reward");
+        scope.ResetRound(); scope.SetAiming(true, scope.AimScreenPosition);
+        score = game.score;
+        shooting.TryShootAt(scope.AimScreenPosition);
+        next = CombatBird(game, 1, 10);
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(next.transform.position));
+        Require(game.score == score && game.QuickscopeKills == 1,
+            "Missing the opening scope shot consumes the bonus chance and retains normal miss penalties");
+        scope.ResetRound();
+        game.Powerups.Activate(WingShotPowerup.DoublePoints);
+        scope.SetAiming(true, scope.AimScreenPosition); scope.AdvanceView(.1f, Vector2.zero);
+        next = CombatBird(game, 3, 60);
+        score = game.score; wallet = game.Progress.Points;
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(next.transform.position));
+        Require(game.score == score + 240 && game.Progress.Points == wallet + 240 && game.QuickscopeKills == 2,
+            "Quickscope and double-points bonuses stack to four times the bird's base reward");
+        if (SessionState.GetBool("WingShot.Checks.Capture", false))
+        {
+            game.UI.SendMessage("LateUpdate"); Canvas.ForceUpdateCanvases();
+            CaptureFrame("Logs/WingShot-Quickscope.png");
+        }
+        scope.ResetRound(); scope.SetAiming(true, scope.AimScreenPosition);
+        var crate = game.Powerups.SpawnCrate(WingShotPowerup.Sniper, false);
+        crate.transform.position = Vector3.zero;
+        score = game.score;
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(crate.transform.position));
+        Require(crate.RemainingHealth == 5 && game.score == score && game.QuickscopeKills == 2,
+            "Crate damage cannot create quickscope rewards");
+        crate.gameObject.SetActive(false); Object.Destroy(crate.gameObject);
+        game.Powerups.ResetRound();
+    }
+
+    static void CheckBossDefense(GameManager game)
+    {
+        var shooting = game.GetComponent<ShootingSystem>();
+        Require(!testBoss.TryHit(0) && !testBoss.TryHit(-1) && testBoss.RemainingHealth == 24,
+            "Boss health rejects zero and negative damage");
+        var blocked = testBoss.DropPoop();
+        int hits = game.Hits, misses = game.Misses, score = game.score;
+        Require(shooting.TryShootAt(Camera.main.WorldToScreenPoint(blocked.transform.position)) && blocked.IsResolved &&
+            game.PlayerHealth == 100 && game.Hits == hits + 1 && game.Misses == misses && game.score == score,
+            "Shooting a dropping blocks its damage, counts as a hit, and awards no farmable points");
+        Require(!blocked.Impact(), "An intercepted dropping cannot damage the player afterward");
+        var impact = testBoss.DropPoop();
+        Require(impact.Impact() && game.PlayerHealth == 88 && !impact.Impact(),
+            "An unblocked dropping removes twelve health exactly once");
+        Require(!game.DamagePlayer(12) && game.PlayerHealth == 88,
+            "Brief invulnerability prevents stacked hits in the same damage window");
+        Require(!game.DamagePlayer(0) && !game.DamagePlayer(-10), "Invalid player damage is rejected");
+        testDropping = testBoss.DropPoop();
+    }
+
+    static void CheckBossDamageAndDefeat(GameManager game)
+    {
+        var shooting = game.GetComponent<ShootingSystem>();
+        int score = game.score, wallet = game.Progress.Points;
+        for (int i = 0; i < 3; i++) shooting.TryShootAt(Camera.main.WorldToScreenPoint(testBoss.transform.position));
+        Require(testBoss.RemainingHealth == 21 && game.score == score && game.Progress.Points == wallet,
+            "Three ordinary shots remove three boss health without premature reward");
+        game.Powerups.Activate(WingShotPowerup.Sniper);
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(testBoss.transform.position));
+        Require(testBoss.RemainingHealth == 18 && !testBoss.IsDefeated,
+            "The sniper deals three boss damage but cannot one-shot the boss");
+        game.UI.Refresh(); game.UI.SendMessage("LateUpdate");
+        if (SessionState.GetBool("WingShot.Checks.Capture", false))
+        {
+            CaptureFrame("Logs/WingShot-Boss-Battle.png");
+            CaptureFrame("Logs/WingShot-Boss-Battle-4x3.png", 1024, 768);
+        }
+        for (int i = 0; i < 5; i++) shooting.TryShootAt(Camera.main.WorldToScreenPoint(testBoss.transform.position));
+        Require(testBoss.RemainingHealth == 3 && game.score == score, "The boss pays no reward until its final health is depleted");
+        shooting.TryShootAt(Camera.main.WorldToScreenPoint(testBoss.transform.position));
+        Require(testBoss.IsDefeated && game.Encounter.CurrentBoss == null && game.Encounter.BossesDefeated == 1 &&
+            game.score == score + 300 && game.Progress.Points == wallet + 300,
+            "Defeating the boss awards exactly three hundred score and cosmetic points once");
+        Require(!testBoss.TryHit(3) && testDropping.IsResolved && !testDropping.Impact() &&
+            WingShotObjects.All<WingShotDropping>().Length == 0,
+            "Boss defeat cancels every falling dropping and prevents duplicate rewards or late damage");
+        var rematch = game.Encounter.SpawnBoss();
+        Require(rematch != null && rematch.MaxHealth == 30 && WingShotBoss.DroppingDamage == 12,
+            "A later boss gains modest health while keeping the same balanced player damage");
     }
 
     static void CheckScopedView(GameManager game)
