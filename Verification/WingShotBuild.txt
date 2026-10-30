@@ -1,0 +1,7 @@
+Result: Succeeded
+Unity: 6000.6.0f1
+Player: C:\Users\pc\Desktop\WingShot\Builds\Windows\Wing Shot.exe
+Errors: 0
+Warnings: 488
+Bytes: 133996330
+UTC: 2026-10-30T02:11:17.8406035Z

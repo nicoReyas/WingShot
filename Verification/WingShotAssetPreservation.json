@@ -1,0 +1,62 @@
+﻿[
+    {
+        "path":  "Assets/Scenes/SampleScene.unity",
+        "unchanged":  true,
+        "sha256":  "2A648AE4BBEC9FC3F9BEEEB1DE972E386F29C93B94460507C8D4BD31033FBC18"
+    },
+    {
+        "path":  "Assets/Prefabs/bird.prefab",
+        "unchanged":  true,
+        "sha256":  "5324E4E3F861D4C5CAE3C675F5A5C45DC87A5FC16A42ECA4BCDE02767B786748"
+    },
+    {
+        "path":  "Packages/manifest.json",
+        "unchanged":  true,
+        "sha256":  "874983C4185FE4B4D20C0EC34BE0655E91E0FF94AF937104FE66EA38697951DA"
+    },
+    {
+        "path":  "Packages/packages-lock.json",
+        "unchanged":  true,
+        "sha256":  "1D94939B87B4A10274E384C3298788E9920F508449AB987738E30DA52EBB4FCE"
+    },
+    {
+        "path":  "ProjectSettings/ProjectVersion.txt",
+        "unchanged":  true,
+        "sha256":  "39584C3E6C1E571D53A79EF2DD6EA91C0568AC086792CC435E86401A0BA824ED"
+    },
+    {
+        "path":  "ProjectSettings/ProjectSettings.asset",
+        "unchanged":  true,
+        "sha256":  "DD3AF3067386070C6F73473E0A03F37D24E46E02902F4B988FB24E0AA8032F7D"
+    },
+    {
+        "path":  "ProjectSettings/EditorSettings.asset",
+        "unchanged":  true,
+        "sha256":  "F8F13B4EAD8154753E42BA1C82CD701D14D4C7EB70E6A9CC615A353B7B041A51"
+    },
+    {
+        "path":  "ProjectSettings/EditorBuildSettings.asset",
+        "unchanged":  true,
+        "sha256":  "CA0137D80F07A367EF09E06B240F6E8EF30D23AE59843D77F6AE15E05CD14A7E"
+    },
+    {
+        "path":  "Assets/Scripts/GameManager.cs.meta",
+        "unchanged":  true,
+        "sha256":  "229FC6BA4D9A45D9AEE4B2C675A85D1FB970F5E67A4B6C8E4C4534E39AEEC526"
+    },
+    {
+        "path":  "Assets/Scripts/BirdTarget.cs.meta",
+        "unchanged":  true,
+        "sha256":  "494A83F2E067BB18A49CBE2279B5C7A8B990CBC39430C423A546728F729F0A85"
+    },
+    {
+        "path":  "Assets/Scripts/BirdSpawner.cs.meta",
+        "unchanged":  true,
+        "sha256":  "02CC53F1266E25AB19BD3D38E87167BC9C4B911FAD515185B4254AA7211F1AD1"
+    },
+    {
+        "path":  "Assets/Scripts/BirdMovement.cs.meta",
+        "unchanged":  true,
+        "sha256":  "647F217BBC7DB15A2EC65038F005DAE41DB6B10B7EBF132C2D6CFA2F8C776B0D"
+    }
+]
