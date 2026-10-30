@@ -1,23 +1,30 @@
 ﻿# Wing Shot verification
 
-Validated with the supplied project's recorded editor, Unity 6000.6.0f1, on October 29, 2026.
+Latest update: simple script comments and original background music, October 29, 2026.
+Editor: the supplied project's recorded Unity 6000.6.0f1.
 
-- Runtime and Editor C# sources compile with zero errors and zero warnings against the installed Unity assemblies.
-- **53 automated Unity Play Mode checks passed**, with no gameplay errors or Editor exceptions in the final run. See Verification/WingShotValidation.json.
-- Checks include actual collider hit/miss accounting, destroyed-target protection, HUD/UI raycasts, timer advancement, pause freeze, queued ESC keyboard input, Resume button, difficulty, round expiry, Play Again, shop button purchases, cosmetic appearance application, save reload, three menu/restart cycles, and a scene reload while paused.
-- Final Windows player build: **Succeeded, 0 errors**. The build reports 488 shader warnings from existing packages; no C# warnings. Details: Verification/WingShotBuild.txt and Verification/WingShot-WindowsBuild.log.
-- SHA-256 comparisons confirm the scene, bird prefab, package manifest/lock, project/version/editor/build settings, and four original script GUIDs match the pre-change backup. Details: Verification/WingShotAssetPreservation.json.
-- Rendered previews of main menu, customization, gameplay, pause, and game over were inspected. A 4:3 main menu preview was also checked. Files: Previews/WingShot-*.png.
+- Runtime and Editor C# compilation passed with zero errors and zero warnings.
+- **62 automated Unity Play Mode checks passed**, with zero gameplay errors.
+- Music checks cover stereo asset import, preloaded PCM, included CC0 dedication, automatic loading into a separate looping source, sound-button mute/unmute, pause fading, and no duplicate sources after repeated rounds.
+- The fresh test Editor logged two Unity Search indexing exceptions. They are recorded separately as Editor issues in Verification/WingShotValidation.json; they did not originate in gameplay scripts.
+- Windows player build: **Succeeded, 0 errors**, with 509 shader warnings from existing packages. See Verification/WingShotBuild.txt and Verification/WingShot-WindowsBuild.log.
+- Verification/WingShotComments.json confirms that twelve gameplay scripts changed only in comments/formatting. GameManager additionally notifies audio when the game state changes; WingShotAudio implements the music.
+- Verification/WingShotAssetPreservation.json confirms that the scene, bird prefab, version/project/editor/build settings, and AudioManager.asset match the backup taken before this update.
+- Verification/WingShotMusic.json records the generated track's duration, sample format, headroom, and loop-boundary check.
 
-No human gameplay session or audio listening test was performed. The exact requested editor version 6000.0.60f1 is not installed and was not tested; project version and package versions were preserved.
+Music: Assets/Resources/Audio/Skybound.wav.
+Original sixteen-bar composition, about 36.9 seconds, 104 BPM, stereo 44.1 kHz.
+No third-party samples. CC0 dedication: Assets/Resources/Audio/Skybound-LICENSE.txt.
+Generator: Tools/Generate-WingShotMusic.py.
 
-No additional Inspector setup is required. Open Assets/Scenes/SampleScene.unity and press Play. Follow README-WingShot.md for the manual acceptance test.
+Music starts automatically in the main menu, loops through rounds, fades quieter while paused or showing results, and follows the existing SOUND toggle. No extra Inspector setup is required.
 
-The preview capture tour sets up sample scores and cosmetics in the isolated test project. Tests restore the original PlayerPrefs afterward; preview values are not baked into the game or its default save.
+Manual listening and a human gameplay session were not performed by the assistant. The exact editor 6000.0.60f1 was not tested; the project version and package versions were preserved.
 
-Deliverables:
-- Builds/Windows/Wing Shot.exe, together with the adjacent Data/Mono/DLL folders.
-- Builds/WingShot-Windows.zip for sharing the player.
-- Builds/WingShot-UnityProject.zip for the completed Unity source project.
-- Backups/Before-WingShot-20261029-175755.zip is the original pre-change backup.
+To check the update, open Assets/Scenes/SampleScene.unity and press Play. Listen on the main menu, start a round, pause/resume, toggle SOUND twice, and return to the main menu. The music should continue without creating another loop. Follow README-WingShot.md for the full game acceptance test.
 
+Current backup: Backups/Before-Comments-And-Music-20261029-220657.zip.
+Initial game-completion backup: Backups/Before-WingShot-20261029-175755.zip.
+Deliverables: Builds/WingShot-Windows.zip and Builds/WingShot-UnityProject.zip.
+
+Previews/ contains the rendered visual previews from the initial game-completion pass; this update changes comments and audio.

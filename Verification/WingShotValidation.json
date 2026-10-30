@@ -1,7 +1,7 @@
 {
     "passed": true,
     "unityVersion": "6000.6.0f1",
-    "completedUtc": "2026-10-30T02:09:48.6554831Z",
+    "completedUtc": "2026-10-30T05:16:08.9708709Z",
     "checks": [
         "GameManager is present",
         "Original score and timer references are intact",
@@ -14,6 +14,9 @@
         "Bird prefab has movement, target and collider",
         "Bird sprite reference resolves",
         "Gameplay scene is enabled in Build Settings",
+        "Original music asset imports as a full-length stereo clip",
+        "Music uses preloaded PCM for smooth looping",
+        "Music CC0 dedication is included in the project",
         "Fresh progress has free default cosmetics and zero points",
         "Insufficient funds cannot unlock a cosmetic",
         "Unlock deducts the exact cost",
@@ -23,6 +26,10 @@
         "Invalid cosmetic indices are rejected",
         "Boot opens main menu with normal time scale",
         "No birds spawn behind main menu",
+        "Music loads automatically into a separate looping 2D audio source",
+        "Music samples are loaded and ready to play",
+        "Sound button mutes both music and effects",
+        "Sound button restores both channels and the saved preference",
         "Customization button opens the shop",
         "Start Game resets round statistics",
         "Round timer advances during gameplay",
@@ -36,6 +43,7 @@
         "Shooting and direct target hits are rejected while paused",
         "Timer stays frozen during pause",
         "Bird movement stays frozen during pause",
+        "Music fades quieter while gameplay is paused",
         "ESC input resumes gameplay through the input adapter",
         "Timer continues after resume",
         "Score increases difficulty and shortens spawn interval with a level cap",
@@ -53,10 +61,14 @@
         "Return to menu clears birds and restores time (cycle 1)",
         "Return to menu clears birds and restores time (cycle 2)",
         "Return to menu clears birds and restores time (cycle 3)",
+        "Repeated rounds keep exactly one music source and one effects source",
         "Scene reload while paused restores main menu and time scale",
         "Scene reload leaves exactly one GameManager",
         "Reload does not leave targets from an earlier round"
     ],
     "errors": [],
-    "editorIssues": []
+    "editorIssues": [
+        "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the collection.\r\nParameter name: index\nSystem.Collections.Generic.List`1[T].get_Item (System.Int32 index) (at <c5ae8a4eeb824526b5df2932bc2395e0>:0)\nUnityEditor.Search.SearchDatabase+<EnumerateAll>d__78.MoveNext () (at <f03e16b4b58248838607cefa048bd30a>:0)\nSystem.Linq.Enumerable.TryGetFirst[TSource] (System.Collections.Generic.IEnumerable`1[T] source, System.Boolean& found) (at <f1b392d8fe224ca2b1f9fab1000b77eb>:0)\nSystem.Linq.Enumerable.First[TSource] (System.Collections.Generic.IEnumerable`1[T] source) (at <f1b392d8fe224ca2b1f9fab1000b77eb>:0)\nUnityEditor.Search.SearchDatabase.GetDefaultSearchDatabase () (at <f03e16b4b58248838607cefa048bd30a>:0)\nUnityEditor.Search.SearchInit.IndexationOnStartup () (at <f03e16b4b58248838607cefa048bd30a>:0)\nUnityEditor.EditorApplication.Internal_CallDelayFunctions () (at <2194b77af8ea43e69caba13ba778a69a>:0)\nUnityEngine.StackTraceUtility:ExtractStringFromExceptionInternal(Object, String&, String&)\n",
+        "ArgumentOutOfRangeException: Index was out of range. Must be non-negative and less than the size of the collection.\r\nParameter name: index\nSystem.Collections.Generic.List`1[T].get_Item (System.Int32 index) (at <c5ae8a4eeb824526b5df2932bc2395e0>:0)\nUnityEditor.Search.SearchDatabase+<EnumerateAll>d__78.MoveNext () (at <f03e16b4b58248838607cefa048bd30a>:0)\nSystem.Linq.Enumerable.TryGetFirst[TSource] (System.Collections.Generic.IEnumerable`1[T] source, System.Boolean& found) (at <f1b392d8fe224ca2b1f9fab1000b77eb>:0)\nSystem.Linq.Enumerable.First[TSource] (System.Collections.Generic.IEnumerable`1[T] source) (at <f1b392d8fe224ca2b1f9fab1000b77eb>:0)\nUnityEditor.Search.SearchDatabase.GetDefaultSearchDatabase () (at <f03e16b4b58248838607cefa048bd30a>:0)\nUnityEditor.Search.SearchInit.IndexationOnStartup () (at <f03e16b4b58248838607cefa048bd30a>:0)\nUnityEditor.EditorApplication.Internal_CallDelayFunctions () (at <2194b77af8ea43e69caba13ba778a69a>:0)\nUnityEngine.StackTraceUtility:ExtractStringFromExceptionInternal(Object, String&, String&)\n"
+    ]
 }

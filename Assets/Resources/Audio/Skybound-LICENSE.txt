@@ -1,0 +1,20 @@
+﻿Skybound - Wing Shot original background music
+=============================================
+
+A cheerful, gentle arcade loop composed and synthesized for Wing Shot.
+Length: sixteen bars at 104 BPM (approximately 36.9 seconds).
+Sound sources: generated sine waves, harmonics, and generated percussion noise.
+No third-party recordings, samples, or melodies were used.
+
+The original composition, generated recording, and generator source are
+dedicated under CC0 1.0 Universal, to the extent rights can be waived.
+You may use, copy, change, and share them without attribution.
+
+CC0 dedication: https://creativecommons.org/publicdomain/zero/1.0/
+Legal code: https://creativecommons.org/publicdomain/zero/1.0/legalcode
+
+Generator: Tools/Generate-WingShotMusic.py
+Audio file: Assets/Resources/Audio/Skybound.wav
+
+This dedication applies only to this music and its generator, not to other
+game assets, fonts, packages, or third-party software in the project.

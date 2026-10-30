@@ -1,0 +1,13 @@
+{
+  "title": "Skybound",
+  "license": "CC0-1.0",
+  "bpm": 104,
+  "bars": 16,
+  "seconds": 36.92308390022676,
+  "sampleRate": 44100,
+  "channels": 2,
+  "peak": 0.82,
+  "rms": 0.13107268096488603,
+  "loopSeamDelta": 0.0024672170577313664,
+  "thirdPartySamples": false
+}

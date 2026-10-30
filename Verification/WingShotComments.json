@@ -1,0 +1,58 @@
+{
+  "backup": "Before-Comments-And-Music-20261029-220657.zip",
+  "passed": true,
+  "checks": [
+    {
+      "path": "Assets/Scripts/BirdMovement.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/BirdSpawner.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/BirdTarget.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/CosmeticProgress.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/ShootingSystem.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotArt.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotBirdVisual.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotCrosshair.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotInput.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotLandscape.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotObjects.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/WingShotUI.cs",
+      "codeUnchanged": true
+    },
+    {
+      "path": "Assets/Scripts/GameManager.cs",
+      "onlyBehaviorChange": "Notifies audio when the game state changes"
+    }
+  ]
+}

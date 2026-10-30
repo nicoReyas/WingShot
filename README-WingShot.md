@@ -25,7 +25,7 @@ The supplied project records **6000.6.0f1**, and that is the locally installed e
 
 Wallet, lifetime points, best score, unlocks, selected cosmetics, and sound preference persist using PlayerPrefs keys beginning with WingShot.v1.
 
-No audio files were supplied. Five short synthesized arcade effects provide shooting, hit, miss, unlock, and game-over sounds without missing references. Sound can be toggled in the main and pause menus. Optional AudioClip overrides are supported by WingShotAudio; add that component to GameManager to assign replacements before Play.
+The original CC0 track "Skybound" provides cheerful looping background music. It uses synthesized instruments and no third-party samples; its dedication is in Assets/Resources/Audio/Skybound-LICENSE.txt. Five short synthesized arcade effects provide shooting, hit, miss, unlock, and game-over sounds without missing references. The SOUND button toggles music and effects together. Music fades quieter during pauses and results, and continues smoothly across rounds. Optional AudioClip overrides are supported by WingShotAudio; add that component to GameManager to assign replacements before Play.
 
 ## Quick acceptance test
 
@@ -62,3 +62,4 @@ Input implementation follows Unity's Input System device polling guidance:
 https://github.com/Unity-Technologies/InputSystem/blob/develop/Packages/com.unity.inputsystem/Documentation~/corresponding-old-new-api.md
 
 Delivered test and build reports are in Verification/. Rerunning the tools writes fresh reports into Logs/. The Windows player closes with Alt+F4.
+

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -9,8 +9,10 @@ public class ShootingSystem : MonoBehaviour
     readonly List<RaycastResult> uiHits = new List<RaycastResult>();
     GameManager game;
 
+    // Find the GameManager on the same object.
     void Awake() { game = GetComponent<GameManager>(); }
 
+    // Listen for one mouse click while the game is running and focused.
     void Update()
     {
         if (game == null || !game.IsPlaying || !Application.isFocused ||
@@ -19,6 +21,7 @@ public class ShootingSystem : MonoBehaviour
     }
 
     // Public for other input adapters and the editor smoke test. Exactly one result per shot.
+    // Check the shot against birds, then count it as one hit or one miss.
     public bool TryShootAt(Vector2 screenPosition)
     {
         if (game == null || !game.IsPlaying || Time.frameCount <= game.StateChangedFrame ||
@@ -29,8 +32,10 @@ public class ShootingSystem : MonoBehaviour
             return false;
 
         game.Sounds.Play(WingShotSound.Shoot);
+        // Update collider positions before checking this frame's shot.
         Physics2D.SyncTransforms();
         var hits = Physics2D.GetRayIntersectionAll(camera.ScreenPointToRay(screenPosition), camera.farClipPlane);
+        // When birds overlap, prefer the one drawn in front.
         BirdTarget target = null;
         int topOrder = int.MinValue;
         foreach (var hit in hits)
@@ -47,6 +52,7 @@ public class ShootingSystem : MonoBehaviour
         return true;
     }
 
+    // Check whether a menu or button should receive the click instead of a bird.
     public bool IsPointerOverUI(Vector2 position)
     {
         if (EventSystem.current == null) return false;

@@ -51,6 +51,7 @@ public static class WingShotProjectTools
     }
     [Serializable] sealed class PrefSnapshot { public List<PrefEntry> entries = new List<PrefEntry>(); }
 
+    // Register Editor callbacks that run and finish the automated checks.
     static WingShotProjectTools()
     {
         EditorApplication.update += Tick;
@@ -64,6 +65,7 @@ public static class WingShotProjectTools
     }
 
     [MenuItem("Tools/Wing Shot/Validate Scene")]
+    // Check scene references without saving changes to the authored scene.
     public static void ValidateScene()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -95,25 +97,40 @@ public static class WingShotProjectTools
         foreach (var go in WingShotObjects.All<GameObject>(true))
             Require(GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go) == 0,
                 "No missing scripts on " + go.name, false);
+        // Confirm the original loop imports as stereo PCM, with its license beside it.
+        var music = AssetDatabase.LoadAssetAtPath<AudioClip>("Assets/Resources/Audio/Skybound.wav");
+        Require(music != null && music.channels == 2 && music.length > 30f,
+            "Original music asset imports as a full-length stereo clip");
+        var musicImporter = (AudioImporter)AssetImporter.GetAtPath("Assets/Resources/Audio/Skybound.wav");
+        Require(musicImporter.defaultSampleSettings.compressionFormat == AudioCompressionFormat.PCM &&
+            musicImporter.defaultSampleSettings.loadType == AudioClipLoadType.DecompressOnLoad,
+            "Music uses preloaded PCM for smooth looping");
+        Require(File.Exists("Assets/Resources/Audio/Skybound-LICENSE.txt"),
+            "Music CC0 dedication is included in the project");
         Debug.Log("Wing Shot scene reference validation passed.");
     }
 
     [MenuItem("Tools/Wing Shot/Run Automated Play Mode Checks")]
+    // Start the automated checks from Unity's Tools menu.
     public static void RunPlayModeChecks() { Begin(false); }
 
+    // Start the same checks when Unity is launched from a command line.
     public static void RunBatchChecks() { Begin(true); }
 
     [MenuItem("Tools/Wing Shot/Build Windows Player")]
+    // Build the Windows player from the Tools menu.
     public static void BuildWindowsPlayer()
     {
         BuildWindows(false);
     }
 
+    // Build the Windows player from a command line.
     public static void BuildWindowsBatch()
     {
         BuildWindows(true);
     }
 
+    // Build the scene into a Windows game and write the build result to a file.
     static void BuildWindows(bool batch)
     {
         try
@@ -154,6 +171,7 @@ public static class WingShotProjectTools
             else throw;
         }
     }
+    // Check the scene, back up saved values, and enter Play Mode for testing.
     static void Begin(bool batch)
     {
         if (SessionState.GetBool(Running, false))
@@ -182,6 +200,7 @@ public static class WingShotProjectTools
         }
     }
 
+    // Run one stage of the gameplay checks after the previous stage has had time to finish.
     static void Tick()
     {
         if (!SessionState.GetBool(Running, false) || SessionState.GetBool(Ending, false)) return;
@@ -196,11 +215,29 @@ public static class WingShotProjectTools
         if (game == null || game.UI == null) return;
         try
         {
+            // Each numbered stage checks a different part of a complete play/replay cycle.
             switch (stage)
             {
                 case 0:
                     Require(game.State == WingShotState.MainMenu && Time.timeScale == 1f, "Boot opens main menu with normal time scale");
                     Require(ActiveBirds().Length == 0, "No birds spawn behind main menu");
+                    // Music should share the saved sound setting but use its own repeating source.
+                    var musicChannel = game.Sounds.MusicSource;
+                    Require(musicChannel != null && musicChannel.clip != null &&
+                        musicChannel.clip.name == "Skybound" && musicChannel.loop &&
+                        musicChannel.spatialBlend == 0f &&
+                        musicChannel != game.Sounds.GetComponent<AudioSource>(),
+                        "Music loads automatically into a separate looping 2D audio source");
+                    Require(musicChannel.clip.loadState == AudioDataLoadState.Loaded,
+                        "Music samples are loaded and ready to play");
+                    bool originalMute = game.Progress.Muted;
+                    FindButton(originalMute ? "SOUND: OFF" : "SOUND: ON").onClick.Invoke();
+                    Require(musicChannel.mute == !originalMute &&
+                        game.Sounds.GetComponent<AudioSource>().mute == !originalMute,
+                        "Sound button mutes both music and effects");
+                    FindButton(originalMute ? "SOUND: ON" : "SOUND: OFF").onClick.Invoke();
+                    Require(musicChannel.mute == originalMute && game.Progress.Muted == originalMute,
+                        "Sound button restores both channels and the saved preference");
                     FindButton("CUSTOMIZE").onClick.Invoke();
                     Require(game.State == WingShotState.Customization, "Customization button opens the shop");
                     FindButton("BACK TO MENU").onClick.Invoke();
@@ -242,6 +279,7 @@ public static class WingShotProjectTools
                 case 2:
                     Require(Mathf.Approximately(pausedTime, game.timeRemaining), "Timer stays frozen during pause");
                     Require(pausedBird != null && pausedBird.transform.position == pausedBirdPosition, "Bird movement stays frozen during pause");
+                    Require(game.Sounds.MusicSource.volume < game.Sounds.musicVolume, "Music fades quieter while gameplay is paused");
 #if ENABLE_INPUT_SYSTEM
                     PrepareKeyboardTest();
                     var keyboard = Keyboard.current;
@@ -315,6 +353,8 @@ public static class WingShotProjectTools
                         game.StartGame();
                     }
                     game.PauseGame();
+                    Require(game.Sounds.GetComponentsInChildren<AudioSource>(true).Length == 2,
+                        "Repeated rounds keep exactly one music source and one effects source");
                     SceneManager.LoadScene(ScenePath);
                     Next(.3);
                     break;
@@ -385,6 +425,7 @@ public static class WingShotProjectTools
         catch (Exception e) { Fail(e); }
     }
 
+    // Let the hidden test window receive the queued ESC key event.
     static void PrepareKeyboardTest()
     {
 #if ENABLE_INPUT_SYSTEM
@@ -398,6 +439,7 @@ public static class WingShotProjectTools
 #endif
     }
 
+    // Restore the original input focus settings after testing.
     static void RestoreInputSettings()
     {
 #if ENABLE_INPUT_SYSTEM
@@ -409,6 +451,7 @@ public static class WingShotProjectTools
         SessionState.SetBool("WingShot.Checks.InputOverride", false);
 #endif
     }
+    // Render a preview image, then restore the normal camera and UI settings.
     static void CaptureFrame(string path, int width = 1280, int height = 720)
     {
         // Batch-mode Game views do not service ScreenCapture requests. Render the same camera
@@ -442,6 +485,7 @@ public static class WingShotProjectTools
         }
         try
         {
+            // Draw into a temporary image without changing the player's normal screen.
             target.Create();
             camera.targetTexture = target;
             camera.aspect = (float)width / height;
@@ -483,6 +527,7 @@ public static class WingShotProjectTools
             if (texture != null) Object.DestroyImmediate(texture);
         }
     }
+    // Create a stationary target that lets the shooting checks aim reliably.
     static BirdTarget MakeTarget(BirdSpawner spawner)
     {
         var go = Object.Instantiate(spawner.birdPrefab, Vector3.zero, Quaternion.identity);
@@ -493,8 +538,10 @@ public static class WingShotProjectTools
         return go.GetComponent<BirdTarget>();
     }
 
+    // Return the birds currently active in the scene.
     static BirdTarget[] ActiveBirds() { return WingShotObjects.All<BirdTarget>(); }
 
+    // Find a shop button by the beginning of its label.
     static Button FindButtonStarting(string title)
     {
         foreach (var button in WingShotObjects.All<Button>())
@@ -504,6 +551,7 @@ public static class WingShotProjectTools
         }
         throw new InvalidOperationException("Active button not found: " + title);
     }
+    // Find an active button by its exact label.
     static Button FindButton(string text)
     {
         foreach (var button in WingShotObjects.All<Button>())
@@ -514,18 +562,21 @@ public static class WingShotProjectTools
         throw new InvalidOperationException("Active button not found: " + text);
     }
 
+    // Move to the next test stage after a short real-time delay.
     static void Next(double delay)
     {
         stage++;
         readyAt = EditorApplication.timeSinceStartup + delay;
     }
 
+    // Record a successful check, or fail the test if its condition is false.
     static void Require(bool condition, string message, bool record = true)
     {
         if (!condition) throw new InvalidOperationException(message);
         if (record && report != null) { report.checks.Add(message); SaveReport(); }
     }
 
+    // Check purchases and saved selections using temporary PlayerPrefs keys.
     static void CheckEconomy()
     {
         string prefix = "WingShot.Validation." + Guid.NewGuid().ToString("N") + ".";
@@ -554,6 +605,7 @@ public static class WingShotProjectTools
         finally { foreach (var key in PreferenceKeys(prefix)) PlayerPrefs.DeleteKey(key.key); PlayerPrefs.Save(); }
     }
 
+    // List the save keys that testing must preserve or clean up.
     static List<PrefEntry> PreferenceKeys(string prefix)
     {
         var keys = new List<PrefEntry>();
@@ -568,6 +620,7 @@ public static class WingShotProjectTools
         return keys;
     }
 
+    // Back up the player's saved values before gameplay tests change them.
     static void CapturePrefs()
     {
         var snapshot = new PrefSnapshot { entries = PreferenceKeys(CosmeticProgress.DefaultPrefix) };
@@ -580,6 +633,7 @@ public static class WingShotProjectTools
         SessionState.SetString(PrefsKey, JsonUtility.ToJson(snapshot));
     }
 
+    // Put the player's original saved values back after the tests.
     static void RestorePrefs()
     {
         string json = SessionState.GetString(PrefsKey, "");
@@ -595,6 +649,7 @@ public static class WingShotProjectTools
         SessionState.EraseString(PrefsKey);
     }
 
+    // Record gameplay errors and keep unrelated Editor search errors in a separate list.
     static void OnLog(string message, string stack, LogType type)
     {
         if (report == null || !SessionState.GetBool(Running, false) ||
@@ -610,6 +665,7 @@ public static class WingShotProjectTools
         SaveReport();
     }
 
+    // Record the failed check and stop the test safely.
     static void Fail(Exception e)
     {
         report.errors.Add(e.ToString());
@@ -617,6 +673,7 @@ public static class WingShotProjectTools
         Finish();
     }
 
+    // Leave Play Mode before restoring saves and writing the report.
     static void Finish()
     {
         SaveReport();
@@ -625,6 +682,7 @@ public static class WingShotProjectTools
         else Complete();
     }
 
+    // Continue or finish tests when Unity enters or leaves Play Mode.
     static void OnPlayModeChanged(PlayModeStateChange state)
     {
         if (!SessionState.GetBool(Running, false)) return;
@@ -645,6 +703,7 @@ public static class WingShotProjectTools
         }
     }
 
+    // Restore settings, write the final report, and close a batch test run.
     static void Complete()
     {
         RestoreInputSettings();
@@ -659,11 +718,13 @@ public static class WingShotProjectTools
         if (batch) EditorApplication.Exit(report.passed ? 0 : 1);
     }
 
+    // Keep the current test report safe across Editor script reloads.
     static void SaveReport()
     {
         if (report != null) SessionState.SetString(ReportKey, JsonUtility.ToJson(report));
     }
 
+    // Write the completed check results to a readable JSON file.
     static void WriteReport()
     {
         report.completedUtc = DateTime.UtcNow.ToString("O");
@@ -671,11 +732,4 @@ public static class WingShotProjectTools
         File.WriteAllText("Logs/WingShotValidation.json", JsonUtility.ToJson(report, true));
     }
 }
-
-
-
-
-
-
-
 

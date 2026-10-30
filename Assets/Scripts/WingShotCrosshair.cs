@@ -1,23 +1,27 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 
 public class WingShotCrosshair : MaskableGraphic
 {
+    // 0 is the classic cross, 1 is a ring, and 2 is a diamond.
     public int style;
     float pulseUntil;
     bool lastHit;
+    // Choose the crosshair shape and ask Unity to redraw it.
     public void SetStyle(int value)
     {
         if (style == value) return;
         style = value;
         SetVerticesDirty();
     }
+    // Briefly flash green for a hit or red for a miss.
     public void Pulse(bool hit)
     {
         lastHit = hit;
         pulseUntil = Time.unscaledTime + .16f;
         SetVerticesDirty();
     }
+    // Refresh the flash until its short real-time timer ends.
     void Update()
     {
         if (pulseUntil > 0f)
@@ -27,12 +31,14 @@ public class WingShotCrosshair : MaskableGraphic
         }
     }
 
+    // Draw the selected crosshair with a dark outline and a colored center.
     protected override void OnPopulateMesh(VertexHelper vh)
     {
         vh.Clear();
         Color ink = new Color(.08f, .15f, .22f, .95f);
         Color fill = pulseUntil > Time.unscaledTime
             ? (lastHit ? new Color(.4f, 1f, .6f) : new Color(1f, .5f, .46f)) : color;
+        // Use the same drawing code for small cursors and larger shop previews.
         float scale = Mathf.Min(rectTransform.rect.width, rectTransform.rect.height) / 36f;
         if (style == 1)
         {
@@ -57,6 +63,7 @@ public class WingShotCrosshair : MaskableGraphic
         Line(vh, Vector2.left * .9f * scale, Vector2.right * .9f * scale, 1.8f * scale, fill);
     }
 
+    // Build a circle, or a diamond, by joining small line segments.
     static void Ring(VertexHelper vh, float radius, float width, Color color, int segments)
     {
         for (int i = 0; i < segments; i++)
@@ -67,6 +74,7 @@ public class WingShotCrosshair : MaskableGraphic
         }
     }
 
+    // Build one thick line from two triangles.
     static void Line(VertexHelper vh, Vector2 a, Vector2 b, float width, Color color)
     {
         var normal = new Vector2(-(b - a).y, (b - a).x).normalized * width * .5f;

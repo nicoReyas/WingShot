@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 #if ENABLE_INPUT_SYSTEM
 using UnityEngine.InputSystem;
 #endif
@@ -6,6 +6,7 @@ using UnityEngine.InputSystem;
 // All gameplay input goes through one adapter, including projects set to Input System only.
 public static class WingShotInput
 {
+    // Check for a connected mouse before hiding the system cursor.
     public static bool HasPointer
     {
         get
@@ -20,6 +21,7 @@ public static class WingShotInput
         }
     }
 
+    // Read the mouse position in screen pixels.
     public static Vector2 PointerPosition
     {
         get
@@ -34,6 +36,7 @@ public static class WingShotInput
         }
     }
 
+    // Return true only on the frame when the left mouse button is first pressed.
     public static bool ShootPressed
     {
         get
@@ -48,6 +51,7 @@ public static class WingShotInput
         }
     }
 
+    // Return true only on the frame when ESC is first pressed.
     public static bool PausePressed
     {
         get

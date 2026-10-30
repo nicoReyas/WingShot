@@ -40,3 +40,15 @@ The project includes:
 
 ## Development
 Wing Shot was developed as a 2D game programming project emphasizing gameplay mechanics, user interaction, and C# scripting in Unity.
+## Music
+
+"Skybound" is an original, cheerful arcade loop made for Wing Shot from synthesized
+tones and percussion, with no third-party samples. It is included under a CC0 1.0
+dedication, with no attribution requirement.
+
+- Music: Assets/Resources/Audio/Skybound.wav
+- Dedication: Assets/Resources/Audio/Skybound-LICENSE.txt
+- Composition and synthesis source: Tools/Generate-WingShotMusic.py
+
+Music starts automatically, loops through rounds, and becomes quieter when
+paused. The existing SOUND button controls both music and effects.

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 public class BirdSpawner : MonoBehaviour
 {
@@ -6,9 +6,11 @@ public class BirdSpawner : MonoBehaviour
     [Min(.1f)] public float spawnInterval = 2f;
     float timer;
 
+    // Higher levels shorten the delay, but it never drops below the minimum.
     public float CurrentInterval => Mathf.Max(.38f, spawnInterval *
         Mathf.Pow(.85f, GameManager.Instance == null ? 0 : GameManager.Instance.DifficultyLevel - 1));
 
+    // Count down to the next bird while a round is running.
     void Update()
     {
         if (GameManager.Instance == null || !GameManager.Instance.IsPlaying) return;
@@ -20,12 +22,14 @@ public class BirdSpawner : MonoBehaviour
         }
     }
 
+    // Reset the spawn countdown when a new round starts.
     public void ResetSpawner(bool spawnImmediately)
     {
         timer = CurrentInterval;
         if (spawnImmediately) SpawnBird();
     }
 
+    // Create a bird and apply random movement and the player's chosen color.
     public GameObject SpawnBird()
     {
         var game = GameManager.Instance;
@@ -34,6 +38,7 @@ public class BirdSpawner : MonoBehaviour
         int level = game.DifficultyLevel;
         float direction = Random.value < .32f ? -1f : 1f;
         float depth = Mathf.Abs(camera.transform.position.z);
+        // Spawn just outside the camera so birds fly into view naturally.
         Vector3 lower = camera.ViewportToWorldPoint(new Vector3(-.12f, .24f, depth));
         Vector3 upper = camera.ViewportToWorldPoint(new Vector3(1.12f, .78f, depth));
         var position = new Vector3(direction > 0f ? lower.x : upper.x, Random.Range(lower.y, upper.y), 0f);
@@ -48,6 +53,7 @@ public class BirdSpawner : MonoBehaviour
         var sprite = bird.GetComponent<SpriteRenderer>();
         if (sprite != null)
             sprite.color = CosmeticCatalog.Birds[game.Progress.Selected(CosmeticCategory.Bird)].Color;
+        // Match the generated bird art with a comfortable clickable area.
         if (game.useProceduralBirdArt)
         {
             var visual = bird.GetComponent<WingShotBirdVisual>();

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 // World-space scenery renders behind the targets, so even clouds cannot obscure bird clicks.
 public class WingShotLandscape : MonoBehaviour
@@ -8,12 +8,14 @@ public class WingShotLandscape : MonoBehaviour
     Sprite landscapeSprite;
     Camera gameCamera;
 
+    // Create a scenery layer behind the birds and reuse the scene's sprite material.
     public void Initialize(GameManager game)
     {
         gameCamera = Camera.main;
         var layer = new GameObject("Wing Shot Meadow");
         layer.transform.SetParent(transform, false);
         scenery = layer.AddComponent<SpriteRenderer>();
+        // Draw scenery behind every target, with no collider or UI click blocker.
         scenery.sortingOrder = -100;
         var spawner = FindAnyObjectByType<BirdSpawner>();
         var original = spawner == null || spawner.birdPrefab == null ? null :
@@ -21,6 +23,7 @@ public class WingShotLandscape : MonoBehaviour
         if (original != null) scenery.sharedMaterial = original.sharedMaterial;
     }
 
+    // Paint the selected sky, clouds, sun or moon, and green meadow.
     public void Apply(int theme)
     {
         if (gameCamera == null || scenery == null) return;
@@ -51,6 +54,7 @@ public class WingShotLandscape : MonoBehaviour
             if (clouds) color = cloud;
             if (theme == 2 && y > 120 && ((x * 73 + y * 137) % 2317 == 0))
                 color = new Color(1f, 1f, .88f, .8f);
+            // Layer two green hills to give the meadow a little depth.
             float horizon = .12f + .035f * Mathf.Sin(u * 9f) + .025f * Mathf.Sin(u * 17f + 1f);
             if (v < horizon) color = hill;
             if (v < .065f + .012f * Mathf.Sin(u * 23f)) color = grass;
@@ -64,8 +68,10 @@ public class WingShotLandscape : MonoBehaviour
         FitToCamera();
     }
 
+    // Keep the scenery fitted to the camera if the game window changes size.
     void LateUpdate() { FitToCamera(); }
 
+    // Match the background's position and size to the visible camera area.
     void FitToCamera()
     {
         if (gameCamera == null || scenery == null || scenery.sprite == null) return;
@@ -74,10 +80,10 @@ public class WingShotLandscape : MonoBehaviour
         scenery.transform.localScale = new Vector3(height * gameCamera.aspect / 6.4f, height / 3.6f, 1f);
     }
 
+    // Free the background texture and sprite created by this script.
     void OnDestroy()
     {
         if (landscapeSprite != null) Destroy(landscapeSprite);
         if (texture != null) Destroy(texture);
     }
 }
-

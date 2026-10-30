@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using TMPro;
 
 public enum WingShotState { MainMenu, Playing, Paused, Customization, GameOver }
@@ -18,6 +18,7 @@ public class GameManager : MonoBehaviour
         }
         private set { instance = value; }
     }
+    // These values describe only the current round; saved points are stored separately.
     public int score;
     public float timeRemaining = 60f;
     public bool gameOver;
@@ -32,18 +33,22 @@ public class GameManager : MonoBehaviour
     public bool IsPlaying => State == WingShotState.Playing;
     [field: SerializeField] public int Hits { get; private set; }
     [field: SerializeField] public int Misses { get; private set; }
+    // Accuracy is zero until the player has taken at least one shot.
     public int Shots => Hits + Misses;
     public float Accuracy => Shots == 0 ? 0f : 100f * Hits / Shots;
     public int DifficultyLevel => Mathf.Clamp(1 + score / 50, 1, 10);
     [field: SerializeField] public int StateChangedFrame { get; private set; }
+    // Shared helpers for saved progress, menus, sound, and the background.
     public CosmeticProgress Progress { get; private set; }
     [field: SerializeField] public WingShotUI UI { get; private set; }
     [field: SerializeField] public WingShotAudio Sounds { get; private set; }
     [field: SerializeField] public WingShotLandscape Landscape { get; private set; }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    // Clear the shared GameManager reference before a new Play Mode session.
     static void ResetStatics() { Instance = null; }
 
+    // Set up the shared manager, saved progress, shooting, and audio.
     void Awake()
     {
         if (Instance != null && Instance != this) { Destroy(gameObject); return; }
@@ -55,6 +60,7 @@ public class GameManager : MonoBehaviour
         if (GetComponent<ShootingSystem>() == null) gameObject.AddComponent<ShootingSystem>();
     }
 
+    // Recover needed references if Unity reloads scripts during Play Mode.
     void OnEnable()
     {
         if (Instance == null) Instance = this;
@@ -66,6 +72,7 @@ public class GameManager : MonoBehaviour
         if (Landscape == null) Landscape = GetComponent<WingShotLandscape>();
     }
 
+    // Build the menus and scenery, apply saved styles, and show the main menu.
     void Start()
     {
         if (Instance != this) return;
@@ -79,6 +86,7 @@ public class GameManager : MonoBehaviour
         ReturnToMainMenu();
     }
 
+    // Handle ESC and count down the timer while the round is running.
     void Update()
     {
         if (Instance != this || UI == null) return;
@@ -94,6 +102,7 @@ public class GameManager : MonoBehaviour
         UI.Refresh();
     }
 
+    // Clear old birds and start a fresh round with zero score and full time.
     public void StartGame()
     {
         ClearBirds();
@@ -105,29 +114,35 @@ public class GameManager : MonoBehaviour
             spawner.ResetSpawner(true);
     }
 
+    // Let the Play Again button start another clean round.
     public void RestartGame() { StartGame(); }
 
+    // Freeze an active round and open the pause menu.
     public void PauseGame()
     {
         if (IsPlaying) ChangeState(WingShotState.Paused);
     }
 
+    // Continue the paused round.
     public void ResumeGame()
     {
         if (State == WingShotState.Paused) ChangeState(WingShotState.Playing);
     }
 
+    // Remove any remaining birds and return to the title screen.
     public void ReturnToMainMenu()
     {
         ClearBirds();
         ChangeState(WingShotState.MainMenu);
     }
 
+    // Open the shop from the main menu.
     public void OpenCustomization()
     {
         if (State == WingShotState.MainMenu) ChangeState(WingShotState.Customization);
     }
 
+    // Finish the round, show results, play the ending sound, and save progress.
     public void EndGame()
     {
         if (!IsPlaying) return;
@@ -137,6 +152,7 @@ public class GameManager : MonoBehaviour
         Progress.Save();
     }
 
+    // Count the shot, award points for a hit, and update the shot feedback.
     public void RegisterShot(bool hit, int points = 10)
     {
         if (!IsPlaying) return;
@@ -145,6 +161,7 @@ public class GameManager : MonoBehaviour
         if (UI != null) UI.ShotFeedback(hit);
     }
 
+    // Increase the round score and immediately save the earned cosmetic points.
     public void AddScore(int points)
     {
         if (!IsPlaying || points <= 0) return;
@@ -153,6 +170,7 @@ public class GameManager : MonoBehaviour
         if (UI != null) UI.Refresh();
     }
 
+    // Buy or select a style, then apply it to the game.
     public void SelectCosmetic(CosmeticCategory category, int index)
     {
         if (State != WingShotState.Customization) return;
@@ -163,6 +181,7 @@ public class GameManager : MonoBehaviour
         UI.ShowCustomizationMessage(wasUnlocked ? "Selected. Ready for your next flight!" : "Unlocked! Yours to keep.");
     }
 
+    // Save the sound preference and apply it to music and effects.
     public void ToggleSound()
     {
         Progress.SetMuted(!Progress.Muted);
@@ -170,6 +189,7 @@ public class GameManager : MonoBehaviour
         if (UI != null) UI.Refresh();
     }
 
+    // Apply saved sound and background choices and refresh the menu previews.
     public void ApplyCosmetics()
     {
         Sounds.SetMuted(Progress.Muted);
@@ -177,17 +197,21 @@ public class GameManager : MonoBehaviour
         if (UI != null) UI.Refresh();
     }
 
+    // Switch screens and update time, cursor visibility, and music volume together.
     void ChangeState(WingShotState state)
     {
         State = state;
         gameOver = state == WingShotState.GameOver;
         StateChangedFrame = Time.frameCount;
+        // A zero time scale freezes movement and the round timer, but UI still works.
         Time.timeScale = state == WingShotState.Paused || state == WingShotState.GameOver ? 0f : 1f;
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
+        if (Sounds != null) Sounds.SetGameState(state);
         if (UI != null) UI.ShowState();
     }
 
+    // Hide and remove all birds so previous rounds cannot leave targets behind.
     void ClearBirds()
     {
         foreach (var bird in WingShotObjects.All<BirdTarget>())
@@ -197,18 +221,22 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    // Pause the round when the player switches to another application.
     void OnApplicationFocus(bool focused)
     {
         if (!focused && IsPlaying) PauseGame();
     }
 
+    // Pause when the operating system suspends the game.
     void OnApplicationPause(bool paused)
     {
         if (paused && IsPlaying) PauseGame();
     }
 
+    // Save progress before the game closes.
     void OnApplicationQuit() { Progress?.Save(); }
 
+    // Save progress and restore normal time and the cursor when leaving this scene.
     void OnDestroy()
     {
         if (Instance != this) return;
@@ -219,5 +247,3 @@ public class GameManager : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
     }
 }
-
-

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -12,6 +12,7 @@ using UnityEngine.InputSystem.UI;
 // Everything is runtime-only: the authored scene and persistent references stay intact.
 public class WingShotUI : MonoBehaviour
 {
+    // Shared palette keeps all generated screens consistent with the original game UI.
     static readonly Color Navy = new Color(.125f, .247f, .345f);
     static readonly Color Cream = new Color(.97f, .98f, .91f);
     static readonly Color Yellow = new Color(1f, .84f, .27f);
@@ -25,6 +26,7 @@ public class WingShotUI : MonoBehaviour
     TMP_Text mainSoundLabel, pauseSoundLabel;
     WingShotCrosshair crosshair;
     float feedbackUntil;
+    // Store each shop button with the category and style it controls.
     [SerializeField] List<CosmeticButton> cosmeticButtons = new List<CosmeticButton>();
     readonly Dictionary<WingShotState, Button> firstButtons = new Dictionary<WingShotState, Button>();
     bool built;
@@ -38,6 +40,7 @@ public class WingShotUI : MonoBehaviour
         public TMP_Text Label;
     }
 
+    // Create the menus around the existing Canvas and connect their buttons.
     public void Build(GameManager manager)
     {
         if (built) return;
@@ -66,11 +69,13 @@ public class WingShotUI : MonoBehaviour
         BuildResults();
         crosshair = Crosshair(canvas.transform, new Vector2(36, 36), Vector2.zero, 0);
         crosshair.name = "Gameplay Crosshair";
+        // A decorative cursor must never intercept a shot or button click.
         crosshair.raycastTarget = false;
         BindActions();
         Refresh();
     }
 
+    // Create a UI input handler only if the scene does not already have one.
     void EnsureEventSystem()
     {
         if (EventSystem.current != null) return;
@@ -82,6 +87,7 @@ public class WingShotUI : MonoBehaviour
 #endif
     }
 
+    // Lay out the score, timer, shot statistics, pause button, and instructions.
     void BuildHud()
     {
         hud = FullRect("Gameplay HUD", canvas.transform);
@@ -109,6 +115,7 @@ public class WingShotUI : MonoBehaviour
         feedback = Label(hud.transform, "", 26, Navy, new Vector2(0, -117), new Vector2(440, 45), new Vector2(.5f, 1));
     }
 
+    // Create the title screen with Start Game, Customize, and sound controls.
     void BuildMainMenu()
     {
         mainMenu = Overlay("Main Menu");
@@ -127,6 +134,7 @@ public class WingShotUI : MonoBehaviour
         mainSoundLabel.fontSize = 14;
     }
 
+    // Create the paused screen with Resume and Main Menu buttons.
     void BuildPauseMenu()
     {
         pauseMenu = Overlay("Pause Menu");
@@ -143,6 +151,7 @@ public class WingShotUI : MonoBehaviour
         pauseSoundLabel.fontSize = 14;
     }
 
+    // Create three columns of purchasable and selectable cosmetic styles.
     void BuildCustomization()
     {
         customization = Overlay("Customization");
@@ -188,6 +197,7 @@ public class WingShotUI : MonoBehaviour
         firstButtons[WingShotState.Customization] = back;
     }
 
+    // Reuse the existing game-over panel and add the final round statistics.
     void BuildResults()
     {
         resultsOverlay = Overlay("Results Overlay");
@@ -236,6 +246,7 @@ public class WingShotUI : MonoBehaviour
         MakeButton(card, "MAIN MENU", new Vector2(0, -245), new Vector2(390, 53), game.ReturnToMainMenu);
     }
 
+    // Show the screen matching the current game state and hide the other screens.
     public void ShowState()
     {
         if (!built) return;
@@ -259,6 +270,7 @@ public class WingShotUI : MonoBehaviour
         Refresh();
     }
 
+    // Update scores, prices, selections, and sound labels from the latest game data.
     public void Refresh()
     {
         if (!built || game.Progress == null) return;
@@ -281,6 +293,7 @@ public class WingShotUI : MonoBehaviour
             crosshair.SetStyle(index);
             crosshair.color = CosmeticCatalog.Crosshairs[index].Color;
         }
+        // Keep each shop entry matched to its saved ownership and selection.
         foreach (var entry in cosmeticButtons)
         {
             var item = CosmeticCatalog.Items(entry.Category)[entry.Index];
@@ -293,6 +306,7 @@ public class WingShotUI : MonoBehaviour
         }
     }
 
+    // Show a short hit or miss message and flash the crosshair.
     public void ShotFeedback(bool hit)
     {
         feedback.text = hit ? "HIT  +10" : "MISS";
@@ -302,8 +316,10 @@ public class WingShotUI : MonoBehaviour
         Refresh();
     }
 
+    // Show a short confirmation after selecting or unlocking a style.
     public void ShowCustomizationMessage(string message) { customizationMessage.text = message; }
 
+    // Move the custom cursor to the mouse and clear expired shot feedback.
     void LateUpdate()
     {
         if (!built || crosshair == null) return;
@@ -311,6 +327,7 @@ public class WingShotUI : MonoBehaviour
         bool visible = game.IsPlaying && Application.isFocused && WingShotInput.HasPointer &&
             pointer.x >= 0 && pointer.y >= 0 && pointer.x < Screen.width && pointer.y < Screen.height;
         crosshair.gameObject.SetActive(visible);
+        // Menus use the system cursor; active gameplay shows our custom crosshair.
         Cursor.visible = !visible;
         if (visible)
         {
@@ -326,6 +343,7 @@ public class WingShotUI : MonoBehaviour
         }
     }
 
+    // Restore runtime button actions after Unity reloads scripts.
     void OnEnable()
     {
         if (!built) return;
@@ -337,6 +355,7 @@ public class WingShotUI : MonoBehaviour
         RestoreDefaultButton(WingShotState.GameOver, resultsOverlay, "PLAY AGAIN");
     }
 
+    // Connect each visible button name and shop entry to its game action.
     void BindActions()
     {
         if (game == null || canvas == null) return;
@@ -361,6 +380,7 @@ public class WingShotUI : MonoBehaviour
             button.onClick = new Button.ButtonClickedEvent();
             button.onClick.AddListener(action);
         }
+        // Keep each shop entry matched to its saved ownership and selection.
         foreach (var entry in cosmeticButtons)
         {
             var category = entry.Category;
@@ -369,6 +389,7 @@ public class WingShotUI : MonoBehaviour
             entry.Button.onClick.AddListener(() => game.SelectCosmetic(category, index));
         }
     }
+    // Remember which menu button keyboard navigation should select first.
     void RestoreDefaultButton(WingShotState state, GameObject root, string title)
     {
         if (root == null) return;
@@ -379,8 +400,10 @@ public class WingShotUI : MonoBehaviour
         }
     }
 
+    // Restore the system cursor if this UI component is disabled.
     void OnDisable() { Cursor.visible = true; }
 
+    // Create a full-screen menu layer that blocks clicks from reaching birds.
     GameObject Overlay(string name)
     {
         var image = Panel(name, canvas.transform, new Color(.07f, .17f, .24f, .20f), true);
@@ -388,6 +411,7 @@ public class WingShotUI : MonoBehaviour
         return image.gameObject;
     }
 
+    // Create a dark menu panel with a small yellow accent line.
     Transform Card(Transform parent, string name, Vector2 size)
     {
         var panel = Panel(name, parent, Navy, true);
@@ -398,6 +422,7 @@ public class WingShotUI : MonoBehaviour
         return panel.transform;
     }
 
+    // Create an empty UI container that fills its parent.
     GameObject FullRect(string name, Transform parent)
     {
         var go = new GameObject(name, typeof(RectTransform));
@@ -407,6 +432,7 @@ public class WingShotUI : MonoBehaviour
         return go;
     }
 
+    // Create a colored image and choose whether it should block mouse clicks.
     Image Panel(string name, Transform parent, Color color, bool blocksClicks)
     {
         var go = new GameObject(name, typeof(RectTransform), typeof(CanvasRenderer), typeof(Image));
@@ -418,6 +444,7 @@ public class WingShotUI : MonoBehaviour
         return image;
     }
 
+    // Create and place a TextMeshPro text label.
     TMP_Text Label(Transform parent, string text, float size, Color color, Vector2 position,
         Vector2 dimensions, Vector2? anchor = null)
     {
@@ -433,6 +460,7 @@ public class WingShotUI : MonoBehaviour
         return label;
     }
 
+    // Apply the shared text size, color, alignment, and nonblocking behavior.
     static void Style(TMP_Text text, float size, Color color, TextAlignmentOptions alignment)
     {
         text.fontSize = size;
@@ -446,6 +474,7 @@ public class WingShotUI : MonoBehaviour
         text.overflowMode = TextOverflowModes.Truncate;
     }
 
+    // Create a yellow button, its text, and its click action.
     Button MakeButton(Transform parent, string text, Vector2 position, Vector2 dimensions, UnityAction action)
     {
         var panel = Panel("Button - " + text, parent, Yellow, true);
@@ -458,6 +487,7 @@ public class WingShotUI : MonoBehaviour
         return button;
     }
 
+    // Apply colors for normal, highlighted, pressed, and unavailable buttons.
     static void StyleButton(Button button)
     {
         var image = button.GetComponent<Image>();
@@ -474,6 +504,7 @@ public class WingShotUI : MonoBehaviour
         button.navigation = new Navigation { mode = Navigation.Mode.Automatic };
     }
 
+    // Create the same crosshair graphic for either gameplay or a shop preview.
     WingShotCrosshair Crosshair(Transform parent, Vector2 size, Vector2 position, int style)
     {
         var go = new GameObject("Crosshair Preview", typeof(RectTransform), typeof(CanvasRenderer), typeof(WingShotCrosshair));
@@ -487,6 +518,7 @@ public class WingShotUI : MonoBehaviour
         return graphic;
     }
 
+    // Make a UI rectangle fill its parent.
     static void Stretch(RectTransform rect)
     {
         rect.anchorMin = Vector2.zero; rect.anchorMax = Vector2.one;
@@ -494,6 +526,7 @@ public class WingShotUI : MonoBehaviour
         rect.localScale = Vector3.one;
     }
 
+    // Set a UI element's anchor, size, position, and normal scale.
     static void Place(RectTransform rect, Vector2 size, Vector2 position, Vector2? anchor = null)
     {
         rect.anchorMin = rect.anchorMax = anchor ?? new Vector2(.5f, .5f);
@@ -504,8 +537,3 @@ public class WingShotUI : MonoBehaviour
         rect.localScale = Vector3.one;
     }
 }
-
-
-
-
-

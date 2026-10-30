@@ -1,15 +1,18 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 // Small generated sprites keep the placeholder prefab and its GUID untouched.
 public static class WingShotArt
 {
+    // Share these two frames between all birds instead of creating textures per bird.
     static Sprite[] birds;
+    // Return a cached wing picture, creating the two pictures only when needed.
     public static Sprite Bird(int frame)
     {
         if (birds == null || birds[0] == null) CreateBirds();
         return birds[Mathf.Abs(frame) % birds.Length];
     }
 
+    // Paint a small bird from simple shapes and create its two animation frames.
     static void CreateBirds()
     {
         birds = new Sprite[2];
@@ -41,22 +44,26 @@ public static class WingShotArt
                 pixels[y * width + x] = color;
             }
             texture.SetPixels(pixels);
+            // Upload the finished pixels and release the CPU-side pixel copy.
             texture.Apply(false, true);
             birds[frame] = Sprite.Create(texture, new Rect(0, 0, width, height), new Vector2(.5f, .5f), 96f);
             birds[frame].name = texture.name;
         }
     }
 
+    // Check whether a pixel sits inside an oval.
     public static bool Ellipse(float x, float y, float cx, float cy, float rx, float ry)
     {
         float dx = (x - cx) / rx, dy = (y - cy) / ry;
         return dx * dx + dy * dy <= 1f;
     }
 
+    // Check whether a pixel sits inside a triangle.
     static bool Triangle(Vector2 p, Vector2 a, Vector2 b, Vector2 c)
     {
         float d1 = Cross(p - b, a - b), d2 = Cross(p - c, b - c), d3 = Cross(p - a, c - a);
         return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
     }
+    // Compare which side of a triangle edge a point lies on.
     static float Cross(Vector2 a, Vector2 b) { return a.x * b.y - a.y * b.x; }
 }

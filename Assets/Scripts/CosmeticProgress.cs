@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using UnityEngine;
 
 public enum CosmeticCategory { Crosshair, Bird, Background }
@@ -9,6 +9,7 @@ public sealed class CosmeticItem
     public readonly string Name;
     public readonly int Cost;
     public readonly Color Color;
+    // Store one cosmetic's save ID, display name, price, and preview color.
     public CosmeticItem(string id, string name, int cost, Color color)
     {
         Id = id; Name = name; Cost = cost; Color = color;
@@ -17,6 +18,7 @@ public sealed class CosmeticItem
 
 public static class CosmeticCatalog
 {
+    // Each category starts with a free style; the other entries cost saved points.
     public static readonly CosmeticItem[] Crosshairs =
     {
         new CosmeticItem("classic", "Classic", 0, new Color(1f, .86f, .32f)),
@@ -36,6 +38,7 @@ public static class CosmeticCatalog
         new CosmeticItem("night", "Moonlit Meadow", 250, new Color(.10f, .18f, .33f))
     };
 
+    // Return the available styles for the requested cosmetic category.
     public static CosmeticItem[] Items(CosmeticCategory category)
     {
         switch (category)
@@ -50,6 +53,7 @@ public static class CosmeticCatalog
 // Uses stable IDs instead of array indices so adding cosmetics never invalidates an existing save.
 public sealed class CosmeticProgress
 {
+    // This prefix keeps Wing Shot's save keys separate from other settings.
     public const string DefaultPrefix = "WingShot.v1.";
     readonly string prefix;
     public int Points { get; private set; }
@@ -57,6 +61,7 @@ public sealed class CosmeticProgress
     public int BestScore { get; private set; }
     public bool Muted { get; private set; }
 
+    // Read saved points, best score, and the sound setting when the game opens.
     public CosmeticProgress(string keyPrefix = DefaultPrefix)
     {
         prefix = keyPrefix;
@@ -66,6 +71,7 @@ public sealed class CosmeticProgress
         Muted = PlayerPrefs.GetInt(prefix + "muted", 0) == 1;
     }
 
+    // Free styles are always available; paid styles need a saved purchase.
     public bool IsUnlocked(CosmeticCategory category, int index)
     {
         var items = CosmeticCatalog.Items(category);
@@ -73,6 +79,7 @@ public sealed class CosmeticProgress
             (items[index].Cost == 0 || PlayerPrefs.GetInt(UnlockKey(category, index), 0) == 1);
     }
 
+    // Find the saved selection, or use the free default if the saved choice is invalid.
     public int Selected(CosmeticCategory category)
     {
         var items = CosmeticCatalog.Items(category);
@@ -82,10 +89,12 @@ public sealed class CosmeticProgress
         return 0;
     }
 
+    // Charge once for a new style, select it, and save the change.
     public bool UnlockAndSelect(CosmeticCategory category, int index)
     {
         var items = CosmeticCatalog.Items(category);
         if (index < 0 || index >= items.Length) return false;
+        // Only a first purchase spends points; selecting an owned style is free.
         if (!IsUnlocked(category, index))
         {
             if (Points < items[index].Cost) return false;
@@ -97,6 +106,7 @@ public sealed class CosmeticProgress
         return true;
     }
 
+    // Add earned points to the wallet and update the best score.
     public void Earn(int amount, int runScore)
     {
         if (amount <= 0) return;
@@ -106,8 +116,10 @@ public sealed class CosmeticProgress
         Save();
     }
 
+    // Remember whether the player has turned sound off.
     public void SetMuted(bool muted) { Muted = muted; Save(); }
 
+    // Write the player's progress to PlayerPrefs so it survives closing the game.
     public void Save()
     {
         PlayerPrefs.SetInt(prefix + "points", Points);
@@ -117,6 +129,7 @@ public sealed class CosmeticProgress
         PlayerPrefs.Save();
     }
 
+    // Build a separate save key for each owned cosmetic.
     string UnlockKey(CosmeticCategory category, int index)
     {
         return prefix + "unlocked." + category + "." + CosmeticCatalog.Items(category)[index].Id;
